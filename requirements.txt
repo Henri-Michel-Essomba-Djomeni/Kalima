@@ -1,0 +1,10 @@
+faster-whisper>=1.0.3
+transformers>=4.44.2
+torch>=2.2
+sentencepiece>=0.2.0
+edge-tts>=6.1.12
+pydub>=0.25.1
+audioop-lts>=0.2.1; python_version >= "3.13"
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.6
+python-multipart>=0.0.9

@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VideoDubber — Doublage automatique</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #14171d;
+    --surface-2: #1b1f27;
+    --border: #262b34;
+    --border-soft: #1e222a;
+    --text: #f3f0e8;
+    --text-muted: #7d8290;
+    --text-dim: #4d515c;
+    --amber: #f5a93f;
+    --coral: #ff6b4d;
+    --teal: #46c2a6;
+    --radius-lg: 20px;
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .fond {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background:
+      radial-gradient(circle 600px at 20% 15%, rgba(245,169,63,0.10), transparent 60%),
+      radial-gradient(circle 700px at 85% 75%, rgba(70,194,166,0.07), transparent 60%),
+      radial-gradient(circle 500px at 90% 10%, rgba(255,107,77,0.06), transparent 60%);
+    pointer-events: none;
+  }
+
+  .grille {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image:
+      linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 900px 500px at 50% 0%, black, transparent 70%);
+    pointer-events: none;
+  }
+
+  .contenu {
+    position: relative;
+    z-index: 1;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 64px 20px 80px;
+  }
+
+  .marque {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 28px;
+  }
+
+  .marque .point {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 10px var(--amber);
+  }
+
+  .marque span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .waveform {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 46px;
+    margin-bottom: 22px;
+  }
+  .waveform .barre {
+    width: 4px;
+    border-radius: 2px;
+    background: linear-gradient(to top, var(--amber), var(--coral));
+    animation: onde 1.3s ease-in-out infinite;
+  }
+  @keyframes onde {
+    0%, 100% { height: 8px; opacity: 0.5; }
+    50% { height: var(--h, 32px); opacity: 1; }
+  }
+
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: clamp(36px, 8vw, 52px);
+    text-align: center;
+    letter-spacing: -0.02em;
+    line-height: 1.02;
+    background: linear-gradient(135deg, #fff 30%, var(--amber) 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .tagline {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 15.5px;
+    margin: 14px auto 48px;
+    max-width: 380px;
+    line-height: 1.55;
+  }
+
+  .carte {
+    position: relative;
+    background: linear-gradient(160deg, var(--surface), var(--surface-2));
+    border-radius: var(--radius-lg);
+    padding: 1px;
+  }
+  .carte::before {
+    content: '';
+    position: absolute; inset: 0;
+    border-radius: var(--radius-lg);
+    padding: 1px;
+    background: linear-gradient(160deg, rgba(245,169,63,0.35), rgba(255,255,255,0.03) 40%, rgba(70,194,166,0.2));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+  .carte-interieur {
+    background: var(--surface);
+    border-radius: calc(var(--radius-lg) - 1px);
+    padding: 32px;
+  }
+
+  .section-titre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  .langues {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: 24px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .langue-bloc {
+    flex: 1;
+    padding: 14px 16px;
+    position: relative;
+  }
+  .langue-bloc .lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  select {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14.5px;
+    font-weight: 600;
+    appearance: none;
+    cursor: pointer;
+  }
+  select:focus-visible { outline: none; }
+  select option { background: var(--surface-2); color: var(--text); }
+
+  .swap {
+    width: 40px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    color: var(--amber);
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .swap:hover { background: rgba(245,169,63,0.08); }
+  .swap svg { width: 16px; height: 16px; }
+
+  .dropzone {
+    display: block;
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    margin-bottom: 22px;
+  }
+  .dropzone:hover, .dropzone.actif { border-color: var(--amber); background: rgba(245,169,63,0.035); }
+  .dropzone input { display: none; }
+
+  .dropzone .icone {
+    width: 34px; height: 34px;
+    margin: 0 auto 12px;
+    color: var(--amber);
+    opacity: 0.85;
+  }
+
+  .dropzone .titre { font-size: 14.5px; font-weight: 600; }
+  .dropzone .detail { font-size: 12px; color: var(--text-dim); margin-top: 5px; font-family: 'JetBrains Mono', monospace; }
+
+  button.lancer {
+    width: 100%;
+    background: linear-gradient(135deg, var(--amber), var(--coral));
+    color: #1a1204;
+    border: none;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 15.5px;
+    padding: 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: filter .15s, transform .1s;
+    letter-spacing: -0.01em;
+  }
+  button.lancer:hover:not(:disabled) { filter: brightness(1.08); }
+  button.lancer:active:not(:disabled) { transform: scale(0.99); }
+  button.lancer:disabled { background: var(--surface-2); color: var(--text-dim); cursor: not-allowed; }
+
+  .timeline {
+    display: none;
+    margin-top: 30px;
+    padding-top: 26px;
+    border-top: 1px solid var(--border-soft);
+  }
+  .timeline.visible { display: block; }
+
+  .etape {
+    display: flex;
+    gap: 14px;
+    position: relative;
+    padding-bottom: 22px;
+  }
+  .etape:last-of-type { padding-bottom: 0; }
+
+  .etape::before {
+    content: '';
+    position: absolute;
+    left: 13px; top: 28px; bottom: -4px;
+    width: 1.5px;
+    background: var(--border);
+  }
+  .etape:last-of-type::before { display: none; }
+
+  .etape .rond {
+    width: 27px; height: 27px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    border: 1.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    z-index: 1;
+    transition: border-color .2s, background .2s;
+  }
+  .etape .rond svg { width: 13px; height: 13px; color: var(--text-dim); transition: color .2s; }
+
+  .etape.active .rond { border-color: var(--amber); box-shadow: 0 0 12px rgba(245,169,63,0.3); animation: respire 1.4s ease-in-out infinite; }
+  .etape.active .rond svg { color: var(--amber); }
+  .etape.fait .rond { border-color: var(--teal); background: rgba(70,194,166,0.12); }
+  .etape.fait .rond svg { color: var(--teal); }
+
+  @keyframes respire { 0%,100% { box-shadow: 0 0 12px rgba(245,169,63,0.3); } 50% { box-shadow: 0 0 4px rgba(245,169,63,0.1); } }
+
+  .etape .corps { flex: 1; padding-top: 3px; }
+  .etape .nom {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-dim);
+    transition: color .2s;
+  }
+  .etape.active .nom, .etape.fait .nom { color: var(--text); }
+
+  .etape .barre {
+    height: 3px;
+    background: var(--surface-2);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .etape .barre .remplissage {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--amber), var(--coral));
+    transition: width .3s;
+  }
+  .etape.fait .barre .remplissage { background: var(--teal); width: 100% !important; }
+
+  .message {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .message.erreur { color: var(--coral); }
+
+  .telecharger {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(70,194,166,0.1);
+    border: 1px solid var(--teal);
+    border-radius: var(--radius);
+    color: var(--teal);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14.5px;
+  }
+  .telecharger.visible { display: flex; }
+  .telecharger svg { width: 16px; height: 16px; }
+
+  footer {
+    text-align: center;
+    margin-top: 36px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+
+<div class="fond"></div>
+<div class="grille"></div>
+
+<div class="contenu">
+
+  <div class="marque"><span class="point"></span><span>Traitement 100% local</span></div>
+
+  <div class="waveform" id="waveform"></div>
+
+  <h1>VideoDubber</h1>
+  <p class="tagline">Transcription, traduction et voix synthétique. Dépose une vidéo, choisis la langue, récupère-la doublée.</p>
+
+  <div class="carte">
+    <div class="carte-interieur">
+
+      <div class="section-titre">Langues</div>
+      <div class="langues">
+        <div class="langue-bloc">
+          <span class="lbl">Source</span>
+          <select id="langueSource"></select>
+        </div>
+        <div class="swap" id="swapLangues" title="Inverser">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+        </div>
+        <div class="langue-bloc">
+          <span class="lbl">Cible</span>
+          <select id="langueCible"></select>
+        </div>
+      </div>
+
+      <div class="section-titre">Vidéo</div>
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="fichierInput" accept="video/*">
+        <svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2"></rect></svg>
+        <div class="titre" id="dropTitre">Dépose une vidéo ou clique pour choisir</div>
+        <div class="detail" id="dropDetail">MP4 · MKV · MOV — taille illimitée</div>
+      </label>
+
+      <button class="lancer" id="btnLancer" disabled>Lancer la traduction</button>
+
+      <div class="timeline" id="timeline">
+        <div class="etape" data-etape="extraction">
+          <div class="rond"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div>
+          <div class="corps">
+            <div class="nom">Extraction audio</div>
+            <div class="barre"><div class="remplissage"></div></div>
+          </div>
+        </div>
+        <div class="etape" data-etape="transcription">
+          <div class="rond"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path></svg></div>
+          <div class="corps">
+            <div class="nom">Transcription</div>
+            <div class="barre"><div class="remplissage"></div></div>
+          </div>
+        </div>
+        <div class="etape" data-etape="traduction">
+          <div class="rond"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path></svg></div>
+          <div class="corps">
+            <div class="nom">Traduction</div>
+            <div class="barre"><div class="remplissage"></div></div>
+          </div>
+        </div>
+        <div class="etape" data-etape="voix">
+          <div class="rond"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v1a7 7 0 0 1-14 0v-1"></path><line x1="12" y1="19" x2="12" y2="23"></line></svg></div>
+          <div class="corps">
+            <div class="nom">Génération voix</div>
+            <div class="barre"><div class="remplissage"></div></div>
+          </div>
+        </div>
+        <div class="etape" data-etape="assemblage">
+          <div class="rond"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2"></rect></svg></div>
+          <div class="corps">
+            <div class="nom">Assemblage final</div>
+            <div class="barre"><div class="remplissage"></div></div>
+          </div>
+        </div>
+        <div class="message" id="message"></div>
+      </div>
+
+      <a class="telecharger" id="lienTelecharger">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Télécharger la vidéo doublée
+      </a>
+
+    </div>
+  </div>
+
+  <footer>Pipeline : Whisper → NLLB-200 → edge-tts → FFmpeg</footer>
+
+</div>
+
+<script>
+const wf = document.getElementById('waveform');
+for (let i = 0; i < 28; i++) {
+  const b = document.createElement('div');
+  b.className = 'barre';
+  const hauteur = 10 + Math.round(Math.sin(i * 0.9) * 14 + Math.random() * 10 + 14);
+  b.style.setProperty('--h', hauteur + 'px');
+  b.style.animationDelay = (i * 0.045) + 's';
+  wf.appendChild(b);
+}
+
+const NOMS_LANGUES = {
+  fr: "Français", en: "Anglais", es: "Espagnol", de: "Allemand",
+  it: "Italien", pt: "Portugais", ar: "Arabe", zh: "Chinois",
+  ja: "Japonais", ru: "Russe"
+};
+
+const selSource = document.getElementById('langueSource');
+const selCible = document.getElementById('langueCible');
+const dropzone = document.getElementById('dropzone');
+const fichierInput = document.getElementById('fichierInput');
+const dropTitre = document.getElementById('dropTitre');
+const dropDetail = document.getElementById('dropDetail');
+const btnLancer = document.getElementById('btnLancer');
+const timeline = document.getElementById('timeline');
+const messageEl = document.getElementById('message');
+const lienTelecharger = document.getElementById('lienTelecharger');
+const swapBtn = document.getElementById('swapLangues');
+
+let fichierChoisi = null;
+
+async function chargerLangues() {
+  let codes = Object.keys(NOMS_LANGUES);
+  try {
+    const res = await fetch('/api/langues');
+    const data = await res.json();
+    if (data.langues && data.langues.length) codes = data.langues;
+  } catch (e) { }
+
+  selSource.innerHTML = codes.map(c => `<option value="${c}" ${c==='en'?'selected':''}>${NOMS_LANGUES[c]||c}</option>`).join('');
+  selCible.innerHTML = codes.map(c => `<option value="${c}" ${c==='fr'?'selected':''}>${NOMS_LANGUES[c]||c}</option>`).join('');
+}
+chargerLangues();
+
+swapBtn.addEventListener('click', () => {
+  const tmp = selSource.value;
+  selSource.value = selCible.value;
+  selCible.value = tmp;
+});
+
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('actif'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('actif'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('actif');
+  if (e.dataTransfer.files.length) {
+    fichierInput.files = e.dataTransfer.files;
+    gererFichier(e.dataTransfer.files[0]);
+  }
+});
+fichierInput.addEventListener('change', () => {
+  if (fichierInput.files.length) gererFichier(fichierInput.files[0]);
+});
+
+function gererFichier(fichier) {
+  fichierChoisi = fichier;
+  dropTitre.textContent = fichier.name;
+  dropDetail.textContent = `${(fichier.size / (1024*1024)).toFixed(1)} Mo`;
+  btnLancer.disabled = false;
+}
+
+function reinitialiserTimeline() {
+  document.querySelectorAll('.etape').forEach(el => {
+    el.classList.remove('active', 'fait');
+    el.querySelector('.remplissage').style.width = '0%';
+  });
+  messageEl.textContent = '';
+  messageEl.classList.remove('erreur');
+  lienTelecharger.classList.remove('visible');
+}
+
+function ordreEtape(nom) {
+  return ['extraction','transcription','traduction','voix','assemblage'].indexOf(nom);
+}
+
+function majEtape(etape, pourcentage, message) {
+  document.querySelectorAll('.etape').forEach(el => {
+    const nomEtape = el.dataset.etape;
+    if (nomEtape === etape) {
+      el.classList.add('active');
+      el.classList.remove('fait');
+      el.querySelector('.remplissage').style.width = pourcentage + '%';
+      if (pourcentage >= 100) {
+        el.classList.add('fait');
+        el.classList.remove('active');
+      }
+    } else if (ordreEtape(nomEtape) < ordreEtape(etape)) {
+      el.classList.add('fait');
+      el.classList.remove('active');
+    }
+  });
+  messageEl.textContent = message || '';
+}
+
+btnLancer.addEventListener('click', async () => {
+  if (!fichierChoisi) return;
+  btnLancer.disabled = true;
+  btnLancer.textContent = 'Envoi de la vidéo...';
+  timeline.classList.add('visible');
+  reinitialiserTimeline();
+
+  const formData = new FormData();
+  formData.append('fichier', fichierChoisi);
+  formData.append('langue_source', selSource.value);
+  formData.append('langue_cible', selCible.value);
+
+  try {
+    const res = await fetch('/api/traduire', { method: 'POST', body: formData });
+    if (!res.ok) throw new Error("Échec de l'envoi.");
+    const { job_id } = await res.json();
+    btnLancer.textContent = 'Traitement en cours...';
+    suivreProgression(job_id);
+  } catch (e) {
+    messageEl.textContent = 'Erreur : ' + e.message;
+    messageEl.classList.add('erreur');
+    btnLancer.disabled = false;
+    btnLancer.textContent = 'Lancer la traduction';
+  }
+});
+
+function suivreProgression(jobId) {
+  const intervalle = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/statut/${jobId}`);
+      const statut = await res.json();
+
+      if (statut.statut === 'erreur') {
+        clearInterval(intervalle);
+        messageEl.textContent = 'Erreur : ' + statut.erreur;
+        messageEl.classList.add('erreur');
+        btnLancer.disabled = false;
+        btnLancer.textContent = 'Lancer la traduction';
+        return;
+      }
+
+      if (statut.etape) {
+        majEtape(statut.etape, statut.pourcentage_etape, statut.message);
+      }
+
+      if (statut.statut === 'termine') {
+        clearInterval(intervalle);
+        document.querySelectorAll('.etape').forEach(el => { el.classList.add('fait'); el.classList.remove('active'); });
+        lienTelecharger.href = `/api/telecharger/${jobId}`;
+        lienTelecharger.classList.add('visible');
+        btnLancer.disabled = false;
+        btnLancer.textContent = 'Traduire une autre vidéo';
+      }
+    } catch (e) { }
+  }, 1500);
+}
+</script>
+
+</body>
+</html>

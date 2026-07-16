@@ -1,0 +1,30 @@
+# Environnement Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Fichiers utilisateur -- jamais versionnés (vidéos, sorties, jobs)
+uploads/*
+!uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep
+jobs/*
+!jobs/.gitkeep
+
+# Fichiers de test locaux
+*.wav
+*.mp3
+*.mp4
+!frontend/**
+
+# Modèles téléchargés localement par certains outils (au cas où)
+*.pt
+*.bin
+*.safetensors
+
+# Éditeurs / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
