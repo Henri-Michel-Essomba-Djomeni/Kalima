@@ -1,10 +1,19 @@
+# ===== Transcription =====
 faster-whisper>=1.0.3
+
+# ===== Traduction (M2M-100, licence MIT) =====
 transformers>=4.44.2
 torch>=2.2
 sentencepiece>=0.2.0
-edge-tts>=6.1.12
+
+# ===== Synthèse vocale (Piper TTS, licence MIT) =====
 pydub>=0.25.1
+requests>=2.31.0
+
+# ===== Compatibilité Python 3.13+ =====
 audioop-lts>=0.2.1; python_version >= "3.13"
+
+# ===== Backend API =====
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.6
 python-multipart>=0.0.9
