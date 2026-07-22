@@ -8,6 +8,9 @@ RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Installer kokoro complet (54 voix, 9 langues) au lieu de kokoro-onnx
+RUN pip install --no-cache-dir kokoro>=0.7
+
 COPY . .
 
 ENV OLLAMA_URL=http://ollama:11434

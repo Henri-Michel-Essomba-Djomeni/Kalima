@@ -18,6 +18,9 @@ jobs/*
 *.mp4
 !frontend/**
 
+# Modèles Kokoro-ONNX (téléchargement local, 340MB — pas dans git)
+models/
+
 # Modèles téléchargés localement par certains outils (au cas où)
 *.pt
 *.bin

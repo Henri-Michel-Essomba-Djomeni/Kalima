@@ -144,7 +144,7 @@ def telecharger(job_id: str):
 @app.get("/api/sous-titres/{job_id}")
 def sous_titres(
     job_id: str,
-    format: str = Query("srt", regex="^(srt|vtt)$"),
+    format: str = Query("srt", pattern="^(srt|vtt)$"),
 ):
     job = obtenir_job(job_id)
     if job is None or job.statut != StatutJob.TERMINE or not job.chemin_video_sortie:
@@ -171,7 +171,7 @@ def sous_titres(
 @app.get("/api/transcription/{job_id}")
 def transcription(
     job_id: str,
-    format: str = Query("txt", regex="^(txt|json)$"),
+    format: str = Query("txt", pattern="^(txt|json)$"),
 ):
     job = obtenir_job(job_id)
     if job is None or job.statut != StatutJob.TERMINE or not job.chemin_video_sortie:
