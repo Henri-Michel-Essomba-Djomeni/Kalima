@@ -1,82 +1,132 @@
-"""
-Traduction de texte avec M2M-100 (Meta AI) — licence MIT.
+﻿"""
+Traduction de texte avec deux backends :
+1. Ollama (Qwen 3, licence Apache 2.0) — prioritaire, qualité supérieure
+2. M2M-100 (Meta, licence MIT) — fallback automatique si Ollama indisponible
 
-Pourquoi M2M-100 plutôt que NLLB-200 :
-- M2M-100 est sous licence MIT (usage commercial libre).
-- NLLB-200 est sous CC BY-NC 4.0 (interdit en commercial).
-- M2M-100 couvre 100 langues, dans toutes les directions.
-- Qualité comparable sur la plupart des paires de langues courantes.
-- Même API Transformers, migration transparente.
-
-Modèle 418M : bon compromis vitesse/qualité sur CPU.
-Modèle 1.2B : meilleure qualité, plus de mémoire.
+Stratégie :
+- Au premier appel, on détecte si Ollama est accessible.
+- Si oui → on utilise Qwen 3 (modèle LLM local, 100+ langues).
+- Si non → fallback silencieux vers M2M-100 (10 langues, plus léger).
+- L'utilisateur peut forcer un backend avec FORCE_TRADUCTEUR=ollama|m2m.
 """
 
+import os
 from typing import List, Optional
+
 from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
 
-# Codes langue M2M-100 (ISO 639-1 → code interne M2M).
-# La liste complète fait ~100 langues ; on expose les plus utiles.
+
 CODES_LANGUES_M2M = {
-    "fr": "fr",
-    "en": "en",
-    "es": "es",
-    "de": "de",
-    "it": "it",
-    "pt": "pt",
-    "ar": "ar",
-    "zh": "zh",
-    "ja": "ja",
-    "ru": "ru",
+    "fr": "fr", "en": "en", "es": "es",
+    "de": "de", "it": "it", "pt": "pt",
+    "ar": "ar", "zh": "zh", "ja": "ja", "ru": "ru",
 }
+
+CODES_LANGUES_OLLAMA = {
+    "fr": "French", "en": "English", "es": "Spanish",
+    "de": "German", "it": "Italian", "pt": "Portuguese",
+    "ar": "Arabic", "zh": "Chinese", "ja": "Japanese",
+    "ru": "Russian", "nl": "Dutch", "pl": "Polish",
+    "tr": "Turkish", "vi": "Vietnamese", "th": "Thai",
+    "hi": "Hindi", "ko": "Korean",
+}
+
+CODES_LANGUES = {**CODES_LANGUES_M2M, **CODES_LANGUES_OLLAMA}
+
+URL_OLLAMA = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+MODELE_OLLAMA = os.environ.get("OLLAMA_MODELE", "qwen3:7b")
+_M2M_NOM_MODELE = "facebook/m2m100_418M"
 
 
 class ErreurTraduction(Exception):
     pass
 
 
-class Traducteur:
-    def __init__(self, nom_modele: str = "facebook/m2m100_418M", device: str = "cpu"):
-        print(f"[+] Chargement du modèle de traduction {nom_modele}...")
-        self.tokenizer = M2M100Tokenizer.from_pretrained(nom_modele)
-        self.modele = M2M100ForConditionalGeneration.from_pretrained(nom_modele)
-        self.device = device
-        self.modele.to(device)
+def ollama_disponible() -> bool:
+    try:
+        import ollama
+        ollama.Client(host=URL_OLLAMA).list()
+        return True
+    except Exception:
+        return False
 
-    def _verifier_langue(self, code_iso: str) -> None:
-        if code_iso not in CODES_LANGUES_M2M:
-            raise ErreurTraduction(
-                f"Langue '{code_iso}' non supportée. "
-                f"Langues dispo : {list(CODES_LANGUES_M2M.keys())}"
-            )
 
-    def traduire_texte(self, texte: str, langue_source: str, langue_cible: str) -> str:
+class TraducteurOllama:
+    def __init__(self):
+        import ollama
+        self._client = ollama.Client(host=URL_OLLAMA)
+        self._modele = MODELE_OLLAMA
+
+    def traduire(self, texte: str, langue_source: str, langue_cible: str) -> str:
         if not texte.strip():
             return ""
+        nom_src = CODES_LANGUES_OLLAMA.get(langue_source, langue_source)
+        nom_dst = CODES_LANGUES_OLLAMA.get(langue_cible, langue_cible)
+        prompt = (
+            f"Translate from {nom_src} to {nom_dst}. "
+            f"Output ONLY the translation:\n\n{texte}"
+        )
+        rep = self._client.generate(model=self._modele, prompt=prompt)
+        return rep.response.strip()
 
-        self._verifier_langue(langue_source)
-        self._verifier_langue(langue_cible)
 
+class TraducteurM2M:
+    def __init__(self):
+        self.tokenizer = M2M100Tokenizer.from_pretrained(_M2M_NOM_MODELE)
+        self.modele = M2M100ForConditionalGeneration.from_pretrained(_M2M_NOM_MODELE)
+        self.device = "cpu"
+        self.modele.to(self.device)
+
+    def traduire(self, texte: str, langue_source: str, langue_cible: str) -> str:
+        if not texte.strip():
+            return ""
         self.tokenizer.src_lang = langue_source
         inputs = self.tokenizer(texte, return_tensors="pt").to(self.device)
-
-        id_langue_cible = self.tokenizer.lang_code_to_id[langue_cible]
+        id_cible = self.tokenizer.lang_code_to_id[langue_cible]
         sortie = self.modele.generate(
-            **inputs,
-            forced_bos_token_id=id_langue_cible,
-            max_length=512,
+            **inputs, forced_bos_token_id=id_cible, max_length=512
         )
         return self.tokenizer.batch_decode(sortie, skip_special_tokens=True)[0]
 
-    def traduire_segments(self, textes: List[str], langue_source: str, langue_cible: str) -> List[str]:
+
+class Traducteur:
+    def __init__(self):
+        self._ollama: Optional[TraducteurOllama] = None
+        self._m2m: Optional[TraducteurM2M] = None
+        force = os.environ.get("FORCE_TRADUCTEUR", "").lower()
+
+        if force == "m2m":
+            print("[+] Traduction : backend M2M-100 forcé.")
+            self._m2m = TraducteurM2M()
+        elif force == "ollama":
+            if ollama_disponible():
+                print("[+] Traduction : backend Ollama forcé.")
+                self._ollama = TraducteurOllama()
+            else:
+                raise ErreurTraduction("Ollama forcé mais indisponible.")
+        else:
+            if ollama_disponible():
+                print("[+] Traduction : backend Ollama (Qwen 3).")
+                self._ollama = TraducteurOllama()
+            else:
+                print("[+] Traduction : backend M2M-100 (fallback).")
+                self._m2m = TraducteurM2M()
+
+    def traduire_texte(self, texte: str, langue_source: str, langue_cible: str) -> str:
+        if self._ollama:
+            return self._ollama.traduire(texte, langue_source, langue_cible)
+        return self._m2m.traduire(texte, langue_source, langue_cible)
+
+    def traduire_segments(
+        self, textes: List[str], langue_source: str, langue_cible: str
+    ) -> List[str]:
         return [self.traduire_texte(t, langue_source, langue_cible) for t in textes]
 
 
 if __name__ == "__main__":
     tr = Traducteur()
-    resultat = tr.traduire_texte(
+    r = tr.traduire_texte(
         "Il y a bien des années, notre chef a dû affronter le destructeur.",
-        langue_source="fr",
-        langue_cible="en",
+        langue_source="fr", langue_cible="en",
     )
-    print(resultat)
+    print(r)

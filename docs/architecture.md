@@ -1,11 +1,11 @@
-# Architecture technique
+﻿# Architecture technique
 
 ## Vue d'ensemble
 
 VideoDubber est organisé en un pipeline séquentiel à 5 étapes. Chaque
 étape est un module indépendant, interchangeable et testable.
 
-```
+`
 ┌──────────────────────────────────────────────────────────────┐
 │                      PipelineTraduction                       │
 │                                                              │
@@ -25,7 +25,7 @@ VideoDubber est organisé en un pipeline séquentiel à 5 étapes. Chaque
 │  5. VideoAssembler                                            │
 │     └─ assembler_video_finale(video, audio) → output.mp4    │
 └──────────────────────────────────────────────────────────────┘
-```
+`
 
 ## Flux de données
 
@@ -33,9 +33,10 @@ VideoDubber est organisé en un pipeline séquentiel à 5 étapes. Chaque
 2. **Audio** : extrait en WAV 16 kHz mono via FFmpeg
 3. **Segmentation** : faster-whisper découpe la parole en segments
    avec timestamps, via son VAD intégré
-4. **Traduction** : chaque segment est traduit via M2M-100
+4. **Traduction** : chaque segment est traduit via Ollama (Qwen 3)
+   ou M2M-100 en fallback automatique
 5. **Synthèse** : chaque segment traduit est converti en audio
-   via Piper TTS, avec calibrage temporel
+   via Kokoro-82M (Apache 2.0), avec calibrage temporel
 6. **Mixage** : tous les segments audio sont placés à leurs
    timestamps sur une piste silencieuse de la durée de la vidéo
 7. **Assemblage** : FFmpeg copie le flux vidéo original et
@@ -43,25 +44,25 @@ VideoDubber est organisé en un pipeline séquentiel à 5 étapes. Chaque
 
 ## Contrôle de progression
 
-`PipelineTraduction` accepte un callback `on_progress` qui reçoit
-des objets `ProgressionEtape` contenant :
-- `etape` : nom de l'étape en cours
-- `pourcentage` : avancement dans l'étape (0-100)
-- `message` : texte descriptif
+PipelineTraduction accepte un callback on_progress qui reçoit
+des objets ProgressionEtape contenant :
+- etape : nom de l'étape en cours
+- pourcentage : avancement dans l'étape (0-100)
+- message : texte descriptif
 
 Le callback est appelé après chaque segment traduit et chaque
 segment vocal généré, permettant un affichage temps réel.
 
 ## Gestion des erreurs
 
-Chaque module expose ses propres exceptions (ex: `ErreurTTS`,
-`ErreurTraduction`). Le pipeline les capture et les transmet via
+Chaque module expose ses propres exceptions (ex: ErreurTTS,
+ErreurTraduction). Le pipeline les capture et les transmet via
 le callback de progression. En cas d'erreur sur un segment
 individuel (génération voix), le segment est ignoré et le
 pipeline continue.
 
 ## Modèles et mémoire
 
-Les modèles Whisper et M2M-100 sont chargés une seule fois dans
-l'instance `PipelineTraduction` et réutilisés pour tous les jobs.
-Piper TTS charge les modèles vocaux à la demande (un par langue).
+Les modèles Whisper, Kokoro-82M et M2M-100 sont chargés une seule
+fois dans l'instance PipelineTraduction et réutilisés pour tous
+les jobs. Ollama tourne comme service séparé (Docker ou local).

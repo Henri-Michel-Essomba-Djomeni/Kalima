@@ -1,4 +1,4 @@
-# VideoDubber — Évaluation fonctionnelle
+﻿# VideoDubber — Évaluation fonctionnelle
 
 ## Fonctionnalités opérationnelles
 
@@ -7,24 +7,24 @@
 | Upload vidéo via interface web | FastAPI + dropzone | — | OK |
 | Extraction audio | FFmpeg (pcm_s16le, 16kHz mono) | LGPL/GPL | OK |
 | Transcription | faster-whisper (medium, VAD) | MIT | OK |
-| Traduction | M2M-100 (418M) | MIT | OK |
-| Synthèse vocale | Piper TTS | MIT | OK |
+| Traduction | Ollama (Qwen 3) / M2M-100 (fallback) | Apache 2.0 / MIT | OK |
+| Synthèse vocale | Kokoro-82M | Apache 2.0 | OK |
 | Calibrage temporel | Ajustement vitesse par segment | — | OK |
 | Assemblage vidéo | FFmpeg -c:v copy (sans réencodage) | LGPL/GPL | OK |
 | Progression temps réel | Pooling HTTP vers frontend | — | OK |
 | API REST | 4 endpoints (traduire, statut, telecharger, langues) | — | OK |
-| CLI | `python -m core.pipeline video.mp4 source target` | — | OK |
+| CLI | python -m core.pipeline video.mp4 source target | — | OK |
 | Clonage vocal optionnel | OpenVoice v2 + MeloTTS (en, es, fr, zh, ja) | MIT | Optionnel |
 
-**Pile technique :** Whisper → M2M-100 → Piper TTS → FFmpeg  
-**100 % local et libre** : aucun appel réseau, toutes les licences sont MIT/BSD.
+**Pile technique :** Whisper → Ollama (Qwen 3) / M2M-100 → Kokoro-82M → FFmpeg  
+**100 % local et libre** : aucun appel réseau, toutes les licences sont MIT/Apache 2.0/BSD.
 
 ## Fonctionnalités absentes — propositions
 
 - **Génération voix off pour texte / PDF** — Aucun endpoint dédié. Pourtant
-  `core/tts_generator.py` peut être réutilisé directement : parser le fichier
+  core/tts_generator.py peut être réutilisé directement : parser le fichier
   texte ou PDF (via PyMuPDF), découper en segments, générer l'audio avec
-  Piper TTS, assembler un fichier MP3 final.
+  Kokoro-82M, assembler un fichier MP3 final.
 
 - **Export sous-titres (SRT / VTT)** — La transcription et la traduction
   produisent déjà des segments avec timestamps exacts. Il manque juste un
@@ -44,9 +44,8 @@
 - **Persistance des jobs** — Stockage en mémoire (perdu au redémarrage).
   Pour de la production : remplacer par Redis ou une base de données.
 
-- **Support de langues étendu** — 10 langues configurées, mais M2M-100 en
-  supporte 100. Il suffit d'ajouter des entrées dans `CODES_LANGUES_M2M`
-  et `VOIX_PAR_LANGUE`.
+- **Support de langues étendu** — Qwen 3 supporte 100+ langues. Il faut
+  ajouter les voix Kokoro correspondantes ou utiliser un fallback.
 
 - **Authentification** — Aucune. L'API est ouverte. À sécuriser si
   exposition publique.
