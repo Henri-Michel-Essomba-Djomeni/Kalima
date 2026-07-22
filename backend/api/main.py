@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.pipeline import PipelineTraduction, ProgressionEtape
-from core.translator import CODES_LANGUES_NLLB
+from core.translator import CODES_LANGUES_M2M
 from api.job_manager import creer_job, obtenir_job, mettre_a_jour_job, StatutJob
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -39,7 +39,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Le pipeline charge des modèles lourds (Whisper, NLLB) : on le garde en
+# Le pipeline charge des modèles lourds (Whisper, M2M-100) : on le garde en
 # mémoire une seule fois pour tous les jobs plutôt que de tout recharger
 # à chaque requête, ce qui prendrait plusieurs minutes à chaque fois.
 _pipeline = PipelineTraduction(taille_modele_whisper="medium")
@@ -81,7 +81,7 @@ def _executer_job_en_arriere_plan(job_id: str, chemin_video: str, langue_source:
 
 @app.get("/api/langues")
 def lister_langues():
-    return {"langues": sorted(CODES_LANGUES_NLLB.keys())}
+    return {"langues": sorted(CODES_LANGUES_M2M.keys())}
 
 
 @app.post("/api/traduire")
@@ -90,7 +90,7 @@ async def lancer_traduction(
     langue_source: str = Form(...),
     langue_cible: str = Form(...),
 ):
-    if langue_source not in CODES_LANGUES_NLLB or langue_cible not in CODES_LANGUES_NLLB:
+    if langue_source not in CODES_LANGUES_M2M or langue_cible not in CODES_LANGUES_M2M:
         raise HTTPException(400, "Langue non supportée.")
 
     job = creer_job()

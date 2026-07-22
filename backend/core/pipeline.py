@@ -100,7 +100,7 @@ class PipelineTraduction:
                 textes_traduits.append(texte_traduit)
                 notifier("traduction", (i + 1) / len(segments) * 100, f"Segment {i+1}/{len(segments)} traduit.")
 
-            # --- 4. Génération voix calibrée par segment ---
+                        # --- 4. Génération voix calibrée par segment (Piper TTS, local) ---
             notifier("voix", 0, "Génération de la voix traduite...")
             dossier_audio_segments = os.path.join(dossier_temp, "segments_audio")
             os.makedirs(dossier_audio_segments, exist_ok=True)

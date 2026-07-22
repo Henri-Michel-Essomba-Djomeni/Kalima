@@ -2,19 +2,12 @@
 Construit la piste audio finale en plaçant chaque segment traduit
 exactement à son timestamp d'origine, avec du silence entre les segments.
 
-C'est ici qu'on résout un problème que l'ancienne version ignorait
-complètement : une phrase traduite en anglais n'a jamais exactement
-la même durée que la phrase française d'origine. Sans ajustement,
-l'audio traduit se désynchronise progressivement de l'image.
-
 Stratégie :
-1. On génère l'audio du segment à vitesse normale.
-2. On mesure sa durée réelle.
+1. Génération de l'audio du segment à vitesse normale via Piper TTS.
+2. Mesure de la durée réelle.
 3. Si elle dépasse la fenêtre disponible (fin - début du segment
-   d'origine), on régénère avec une vitesse légèrement accélérée
-   (edge-tts supporte ça nativement, donc pas de perte de qualité
-   comme avec un accéléré audio classique).
-4. On place le résultat au bon timestamp dans la piste finale,
+   d'origine), on régénère avec une vitesse légèrement accélérée.
+4. Placement du résultat au bon timestamp dans la piste finale,
    avec du silence comblant les espaces.
 """
 
@@ -46,20 +39,14 @@ def generer_segment_calibre(
     index: int,
     marge_max_acceleration: float = 1.4,
 ) -> SegmentAligne:
-    """
-    Génère l'audio d'un segment en ajustant sa vitesse pour qu'il tienne
-    dans la fenêtre de temps [debut, fin] du segment vidéo d'origine.
-    """
     fenetre_ms = (fin - debut) * 1000
-    chemin_sortie = os.path.join(dossier_temp, f"seg_{index:04d}.mp3")
+    chemin_sortie = os.path.join(dossier_temp, f"seg_{index:04d}.wav")
 
-    # Première passe à vitesse normale
     generer_voix(texte, langue, chemin_sortie, taux_vitesse="+0%")
     duree_actuelle = _duree_fichier_ms(chemin_sortie)
 
-    if duree_actuelle > fenetre_ms and fenetre_ms > 0:
+    if duree_actuelle > fenetre_ms > 0:
         ratio_necessaire = duree_actuelle / fenetre_ms
-        # On plafonne l'accélération pour ne pas obtenir une voix ridicule
         ratio_applique = min(ratio_necessaire, marge_max_acceleration)
         pourcentage = int((ratio_applique - 1) * 100)
         generer_voix(texte, langue, chemin_sortie, taux_vitesse=f"+{pourcentage}%")
@@ -72,10 +59,6 @@ def construire_piste_audio_complete(
     duree_totale_secondes: float,
     chemin_sortie: str,
 ) -> str:
-    """
-    Assemble tous les segments audio calibrés en une seule piste,
-    chacun placé exactement à son timestamp d'origine.
-    """
     piste_finale = AudioSegment.silent(duration=int(duree_totale_secondes * 1000))
 
     for seg in segments:
