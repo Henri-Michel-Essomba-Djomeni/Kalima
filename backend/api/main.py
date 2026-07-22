@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.pipeline import PipelineTraduction, ProgressionEtape
 from core.translator import CODES_LANGUES
 from core.srt_exporter import segments_vers_srt, segments_vers_vtt, segments_vers_texte, charger_transcription
-from api.job_manager import creer_job, obtenir_job, mettre_a_jour_job, StatutJob
+from api.job_manager import creer_job, obtenir_job, mettre_a_jour_job, lister_jobs, StatutJob
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOSSIER_UPLOADS = os.path.join(BASE_DIR, "uploads")
@@ -72,6 +72,20 @@ def lister_langues():
     return {"langues": sorted(CODES_LANGUES.keys())}
 
 
+@app.get("/api/jobs")
+def lister_tous_les_jobs():
+    return {"jobs": [{
+        "id": j.id,
+        "statut": j.statut,
+        "etape": j.etape,
+        "pourcentage_etape": j.pourcentage_etape,
+        "message": j.message,
+        "langue_source": j.langue_source,
+        "langue_cible": j.langue_cible,
+        "cree_le": j.cree_le,
+    } for j in lister_jobs()]}
+
+
 @app.post("/api/traduire")
 async def lancer_traduction(
     fichier: UploadFile = File(...),
@@ -81,7 +95,7 @@ async def lancer_traduction(
     if langue_source not in CODES_LANGUES or langue_cible not in CODES_LANGUES:
         raise HTTPException(400, "Langue non supportée.")
 
-    job = creer_job()
+    job = creer_job(langue_source=langue_source, langue_cible=langue_cible)
     chemin_video = os.path.join(DOSSIER_UPLOADS, f"{job.id}_{fichier.filename}")
 
     with open(chemin_video, "wb") as f:
@@ -207,3 +221,5 @@ async def tts_texte(
 chemin_frontend = os.path.join(BASE_DIR, "frontend")
 if os.path.isdir(chemin_frontend):
     app.mount("/", StaticFiles(directory=chemin_frontend, html=True), name="frontend")
+
+
