@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VideoDubber — Doublage automatique</title>
+<title>Kalima — Doublage automatique</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -241,6 +241,51 @@
   .dropzone .titre { font-size: 14.5px; font-weight: 600; }
   .dropzone .detail { font-size: 12px; color: var(--text-dim); margin-top: 5px; font-family: 'JetBrains Mono', monospace; }
 
+  .clonage {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 13px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    margin-bottom: 22px;
+    transition: border-color .15s;
+  }
+  .clonage:hover { border-color: var(--text-dim); }
+  .clonage input { display: none; }
+  .clonage .case {
+    width: 18px; height: 18px;
+    border: 1.5px solid var(--border);
+    border-radius: 5px;
+    flex-shrink: 0;
+    position: relative;
+    transition: background .15s, border-color .15s;
+  }
+  .clonage input:checked + .case {
+    background: linear-gradient(135deg, var(--amber), var(--coral));
+    border-color: transparent;
+  }
+  .clonage input:checked + .case::after {
+    content: '';
+    position: absolute;
+    left: 5px; top: 1px;
+    width: 5px; height: 9px;
+    border: solid #1a1204;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .clonage .texte { font-size: 13.5px; font-weight: 600; }
+  .clonage .note {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-dim);
+    margin-top: 1px;
+  }
+  .clonage.desactive { opacity: 0.45; cursor: not-allowed; }
+
   button.lancer {
     width: 100%;
     background: linear-gradient(135deg, var(--amber), var(--coral));
@@ -375,7 +420,7 @@
 
   <div class="waveform" id="waveform"></div>
 
-  <h1>VideoDubber</h1>
+  <h1>Kalima</h1>
   <p class="tagline">Transcription, traduction et voix synthétique. Dépose une vidéo, choisis la langue, récupère-la doublée.</p>
 
   <div class="carte">
@@ -402,6 +447,15 @@
         <svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2"></rect></svg>
         <div class="titre" id="dropTitre">Dépose une vidéo ou clique pour choisir</div>
         <div class="detail" id="dropDetail">MP4 · MKV · MOV — taille illimitée</div>
+      </label>
+
+      <label class="clonage" id="clonageBloc">
+        <input type="checkbox" id="cloneVoix">
+        <span class="case"></span>
+        <span class="texte">
+          Cloner la voix d'origine
+          <span class="note" id="clonageNote">plutôt qu'une voix générique</span>
+        </span>
       </label>
 
       <button class="lancer" id="btnLancer" disabled>Lancer la traduction</button>
@@ -485,8 +539,31 @@ const timeline = document.getElementById('timeline');
 const messageEl = document.getElementById('message');
 const lienTelecharger = document.getElementById('lienTelecharger');
 const swapBtn = document.getElementById('swapLangues');
+const cloneVoix = document.getElementById('cloneVoix');
+const clonageBloc = document.getElementById('clonageBloc');
+const clonageNote = document.getElementById('clonageNote');
 
 let fichierChoisi = null;
+let LANGUES_CLONABLES = [];
+
+async function chargerLanguesClonables() {
+  try {
+    const res = await fetch('/api/langues-clonables');
+    const data = await res.json();
+    LANGUES_CLONABLES = data.langues || [];
+  } catch (e) { LANGUES_CLONABLES = []; }
+  majDisponibiliteClonage();
+}
+
+function majDisponibiliteClonage() {
+  const disponible = LANGUES_CLONABLES.includes(selCible.value);
+  clonageBloc.classList.toggle('desactive', !disponible);
+  cloneVoix.disabled = !disponible;
+  if (!disponible) cloneVoix.checked = false;
+  clonageNote.textContent = disponible
+    ? "plutôt qu'une voix générique"
+    : `non disponible pour ${NOMS_LANGUES[selCible.value] || selCible.value}`;
+}
 
 async function chargerLangues() {
   let codes = Object.keys(NOMS_LANGUES);
@@ -500,11 +577,15 @@ async function chargerLangues() {
   selCible.innerHTML = codes.map(c => `<option value="${c}" ${c==='fr'?'selected':''}>${NOMS_LANGUES[c]||c}</option>`).join('');
 }
 chargerLangues();
+chargerLanguesClonables();
+
+selCible.addEventListener('change', majDisponibiliteClonage);
 
 swapBtn.addEventListener('click', () => {
   const tmp = selSource.value;
   selSource.value = selCible.value;
   selCible.value = tmp;
+  majDisponibiliteClonage();
 });
 
 dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('actif'); });
@@ -572,6 +653,7 @@ btnLancer.addEventListener('click', async () => {
   formData.append('fichier', fichierChoisi);
   formData.append('langue_source', selSource.value);
   formData.append('langue_cible', selCible.value);
+  formData.append('cloner_voix', cloneVoix.checked);
 
   try {
     const res = await fetch('/api/traduire', { method: 'POST', body: formData });

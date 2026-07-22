@@ -51,16 +51,25 @@ class Transcripteur:
         except ImportError:
             return "cpu"
 
-    def transcrire(self, chemin_audio: str, langue_source: Optional[str] = None) -> List[SegmentTranscrit]:
+    def transcrire(self, chemin_audio: str, langue_source: Optional[str] = None,
+                    duree_totale: Optional[float] = None, on_segment=None) -> List[SegmentTranscrit]:
         """
         Transcrit un fichier audio complet en segments cohérents.
 
         langue_source: code langue ISO (ex: "fr"), ou None pour auto-détection.
+        duree_totale: durée totale de l'audio en secondes, utilisée pour calculer
+                      une progression en pourcentage au fur et à mesure.
+        on_segment: callback optionnel appelé après chaque segment transcrit,
+                    avec (temps_actuel, duree_totale) -- permet d'afficher une
+                    progression en temps réel plutôt qu'un seul saut à 100%
+                    à la toute fin (important sur les vidéos longues, où la
+                    transcription peut prendre plusieurs dizaines de minutes
+                    sur CPU sans aucun retour visuel sinon).
         """
         segments_iter, info = self.modele.transcribe(
             chemin_audio,
             language=langue_source,
-            vad_filter=True,          # segmentation intelligente par silence
+            vad_filter=True,
             vad_parameters={"min_silence_duration_ms": 400},
             beam_size=5,
         )
@@ -76,6 +85,8 @@ class Transcripteur:
                     texte=texte,
                     langue_detectee=langue,
                 ))
+            if on_segment:
+                on_segment(seg.end, duree_totale)
         return resultats
 
 

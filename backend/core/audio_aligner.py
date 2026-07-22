@@ -20,7 +20,7 @@ Stratégie :
 
 import os
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 from pydub import AudioSegment
 
 from .tts_generator import generer_voix, ErreurTTS
@@ -45,24 +45,42 @@ def generer_segment_calibre(
     dossier_temp: str,
     index: int,
     marge_max_acceleration: float = 1.4,
+    cloneur=None,
+    chemin_reference: Optional[str] = None,
 ) -> SegmentAligne:
     """
     Génère l'audio d'un segment en ajustant sa vitesse pour qu'il tienne
     dans la fenêtre de temps [debut, fin] du segment vidéo d'origine.
+
+    Si `cloneur` et `chemin_reference` sont fournis et que la langue cible
+    est clonable, on génère avec la voix d'origine imitée. Sinon, on
+    retombe automatiquement sur la voix générique edge-tts.
     """
     fenetre_ms = (fin - debut) * 1000
     chemin_sortie = os.path.join(dossier_temp, f"seg_{index:04d}.mp3")
 
+    def _generer(vitesse_pourcentage: str):
+        if cloneur is not None and chemin_reference is not None:
+            from .voice_cloner import ErreurLangueNonClonable, ErreurClonage
+            try:
+                vitesse_ratio = 1.0 + (int(vitesse_pourcentage.strip('+%') or 0) / 100)
+                cloneur.generer_voix_clonee(
+                    texte, langue, chemin_reference, chemin_sortie, vitesse=vitesse_ratio
+                )
+                return
+            except (ErreurLangueNonClonable, ErreurClonage) as e:
+                print(f"[!] Segment {index} : repli sur la voix générique -- {e}")
+        generer_voix(texte, langue, chemin_sortie, taux_vitesse=vitesse_pourcentage)
+
     # Première passe à vitesse normale
-    generer_voix(texte, langue, chemin_sortie, taux_vitesse="+0%")
+    _generer("+0%")
     duree_actuelle = _duree_fichier_ms(chemin_sortie)
 
     if duree_actuelle > fenetre_ms and fenetre_ms > 0:
         ratio_necessaire = duree_actuelle / fenetre_ms
-        # On plafonne l'accélération pour ne pas obtenir une voix ridicule
         ratio_applique = min(ratio_necessaire, marge_max_acceleration)
         pourcentage = int((ratio_applique - 1) * 100)
-        generer_voix(texte, langue, chemin_sortie, taux_vitesse=f"+{pourcentage}%")
+        _generer(f"+{pourcentage}%")
 
     return SegmentAligne(debut=debut, fin=fin, chemin_audio=chemin_sortie)
 

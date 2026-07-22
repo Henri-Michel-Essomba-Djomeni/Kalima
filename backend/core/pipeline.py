@@ -19,6 +19,8 @@ from .translator import Traducteur
 from .audio_aligner import generer_segment_calibre, construire_piste_audio_complete
 from .video_assembler import assembler_video_finale
 from .audio_extractor import obtenir_duree_video
+from .voice_reference import extraire_echantillon_reference
+from .voice_cloner import ClonageVoix, langue_est_clonable
 
 
 @dataclass
@@ -36,6 +38,7 @@ class PipelineTraduction:
         # Les modèles sont chargés une seule fois et réutilisés pour tous les jobs
         self._transcripteur: Optional[Transcripteur] = None
         self._traducteur: Optional[Traducteur] = None
+        self._cloneur: Optional[ClonageVoix] = None
         self.taille_modele_whisper = taille_modele_whisper
 
     def _get_transcripteur(self) -> Transcripteur:
@@ -48,6 +51,11 @@ class PipelineTraduction:
             self._traducteur = Traducteur()
         return self._traducteur
 
+    def _get_cloneur(self) -> ClonageVoix:
+        if self._cloneur is None:
+            self._cloneur = ClonageVoix()
+        return self._cloneur
+
     def executer(
         self,
         chemin_video: str,
@@ -55,6 +63,7 @@ class PipelineTraduction:
         langue_cible: str,
         chemin_sortie: str,
         on_progress: TypeCallback = None,
+        cloner_voix: bool = False,
     ) -> str:
 
         def notifier(etape, pct, msg):
@@ -75,9 +84,18 @@ class PipelineTraduction:
             # de forcer la langue indiquée par l'utilisateur : si jamais il y a
             # une erreur de manipulation (langues inversées, mauvais code...),
             # la détection auto évite de transcrire l'audio dans la mauvaise langue.
-            notifier("transcription", 0, "Transcription en cours (peut prendre du temps sur une vidéo longue)...")
+            notifier("transcription", 0, "Transcription en cours...")
             transcripteur = self._get_transcripteur()
-            segments = transcripteur.transcrire(chemin_audio, langue_source=None)
+
+            def on_segment(temps_actuel, duree_totale_audio):
+                if duree_totale_audio:
+                    pct = min(temps_actuel / duree_totale_audio * 100, 99)
+                    notifier("transcription", pct, f"{temps_actuel:.0f}s / {duree_totale_audio:.0f}s transcrits...")
+
+            segments = transcripteur.transcrire(
+                chemin_audio, langue_source=None,
+                duree_totale=duree_totale, on_segment=on_segment,
+            )
             notifier("transcription", 100, f"{len(segments)} segments transcrits.")
 
             if segments and segments[0].langue_detectee != langue_source:
@@ -101,6 +119,22 @@ class PipelineTraduction:
                 notifier("traduction", (i + 1) / len(segments) * 100, f"Segment {i+1}/{len(segments)} traduit.")
 
             # --- 4. Génération voix calibrée par segment ---
+            # Si le clonage est demandé et que la langue cible le permet, on
+            # extrait un échantillon de la voix d'origine et on l'utilise
+            # comme référence. Sinon, repli automatique sur la voix générique.
+            cloneur = None
+            chemin_reference = None
+            if cloner_voix and langue_est_clonable(langue_cible):
+                notifier("voix", 0, "Extraction d'un échantillon de la voix d'origine...")
+                chemin_reference = os.path.join(dossier_temp, "voix_reference.wav")
+                extraire_echantillon_reference(chemin_audio, segments, chemin_reference)
+                cloneur = self._get_cloneur()
+            elif cloner_voix:
+                notifier(
+                    "voix", 0,
+                    f"Le clonage n'est pas disponible pour '{langue_cible}' -- voix générique utilisée."
+                )
+
             notifier("voix", 0, "Génération de la voix traduite...")
             dossier_audio_segments = os.path.join(dossier_temp, "segments_audio")
             os.makedirs(dossier_audio_segments, exist_ok=True)
@@ -114,6 +148,8 @@ class PipelineTraduction:
                         fin=seg.fin,
                         dossier_temp=dossier_audio_segments,
                         index=i,
+                        cloneur=cloneur,
+                        chemin_reference=chemin_reference,
                     )
                     segments_alignes.append(seg_aligne)
                 notifier("voix", (i + 1) / len(segments) * 100, f"Voix générée {i+1}/{len(segments)}.")
@@ -135,8 +171,8 @@ class PipelineTraduction:
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 4:
-        print("Usage : python pipeline.py video.mp4 langue_source langue_cible")
-        print("Exemple : python pipeline.py film.mp4 fr en")
+        print("Usage : python pipeline.py video.mp4 langue_source langue_cible [--cloner-voix]")
+        print("Exemple : python pipeline.py film.mp4 fr en --cloner-voix")
         sys.exit(1)
 
     def afficher_progres(p: ProgressionEtape):
@@ -149,5 +185,6 @@ if __name__ == "__main__":
         langue_cible=sys.argv[3],
         chemin_sortie="video_traduite_finale.mp4",
         on_progress=afficher_progres,
+        cloner_voix="--cloner-voix" in sys.argv,
     )
     print(f"Vidéo finale : {resultat}")

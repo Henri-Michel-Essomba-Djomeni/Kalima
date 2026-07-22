@@ -1,4 +1,4 @@
-# VideoDubber
+# Kalima
 
 Doublage automatique de vidéos : transcription, traduction, génération de
 voix (générique ou clonée à partir de la voix d'origine), et réassemblage

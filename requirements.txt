@@ -8,3 +8,8 @@ audioop-lts>=0.2.1; python_version >= "3.13"
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.6
 python-multipart>=0.0.9
+
+# --- Clonage vocal (optionnel) ---
+# S'installe séparément, avec --no-deps pour éviter un conflit de version
+# sur faster-whisper. Voir le README, section "Clonage de la voix d'origine".
+unidic-lite
