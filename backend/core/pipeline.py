@@ -1,4 +1,4 @@
-﻿import os
+import os
 import tempfile
 import shutil
 import json
@@ -10,6 +10,8 @@ from .transcriber import Transcripteur
 from .translator import Traducteur
 from .audio_aligner import generer_segment_calibre, construire_piste_audio_complete
 from .video_assembler import assembler_video_finale
+from .voice_reference import extraire_echantillon_reference
+from .voice_cloner import ClonageVoix, langue_est_clonable
 
 
 @dataclass
@@ -26,6 +28,7 @@ class PipelineTraduction:
     def __init__(self, taille_modele_whisper: str = "medium"):
         self._transcripteur: Optional[Transcripteur] = None
         self._traducteur: Optional[Traducteur] = None
+        self._cloneur: Optional[ClonageVoix] = None
         self.taille_modele_whisper = taille_modele_whisper
 
     def _get_transcripteur(self) -> Transcripteur:
@@ -38,6 +41,11 @@ class PipelineTraduction:
             self._traducteur = Traducteur()
         return self._traducteur
 
+    def _get_cloneur(self) -> ClonageVoix:
+        if self._cloneur is None:
+            self._cloneur = ClonageVoix()
+        return self._cloneur
+
     def executer(
         self,
         chemin_video: str,
@@ -45,6 +53,7 @@ class PipelineTraduction:
         langue_cible: str,
         chemin_sortie: str,
         on_progress: TypeCallback = None,
+        cloner_voix: bool = False,
     ) -> str:
         def notifier(etape, pct, msg):
             if on_progress:
@@ -58,9 +67,21 @@ class PipelineTraduction:
             duree_totale = obtenir_duree_video(chemin_video)
             notifier("extraction", 100, "Audio extrait.")
 
+            # Détection automatique de la langue, avec progression segment
+            # par segment (essentiel sur les vidéos longues où la
+            # transcription peut prendre plusieurs dizaines de minutes).
             notifier("transcription", 0, "Transcription en cours...")
             transcripteur = self._get_transcripteur()
-            segments = transcripteur.transcrire(chemin_audio, langue_source=None)
+
+            def on_segment(temps_actuel, duree_totale_audio):
+                if duree_totale_audio:
+                    pct = min(temps_actuel / duree_totale_audio * 100, 99)
+                    notifier("transcription", pct, f"{temps_actuel:.0f}s / {duree_totale_audio:.0f}s transcrits...")
+
+            segments = transcripteur.transcrire(
+                chemin_audio, langue_source=None,
+                duree_totale=duree_totale, on_segment=on_segment,
+            )
             notifier("transcription", 100, f"{len(segments)} segments transcrits.")
 
             if segments and segments[0].langue_detectee != langue_source:
@@ -79,9 +100,7 @@ class PipelineTraduction:
             textes_traduits = []
             donnees_segments = []
             for i, seg in enumerate(segments):
-                texte_traduit = traducteur.traduire_texte(
-                    seg.texte, langue_source, langue_cible
-                )
+                texte_traduit = traducteur.traduire_texte(seg.texte, langue_source, langue_cible)
                 textes_traduits.append(texte_traduit)
                 donnees_segments.append({
                     "index": i,
@@ -90,10 +109,21 @@ class PipelineTraduction:
                     "texte_original": seg.texte,
                     "traduction": texte_traduit,
                 })
+                notifier("traduction", (i + 1) / len(segments) * 100, f"Segment {i+1}/{len(segments)} traduit.")
+
+            # Clonage vocal : extraction de la référence si demandé et
+            # possible pour la langue cible, sinon repli sur Kokoro-82M.
+            cloneur = None
+            chemin_reference = None
+            if cloner_voix and langue_est_clonable(langue_cible):
+                notifier("voix", 0, "Extraction d'un échantillon de la voix d'origine...")
+                chemin_reference = os.path.join(dossier_temp, "voix_reference.wav")
+                extraire_echantillon_reference(chemin_audio, segments, chemin_reference)
+                cloneur = self._get_cloneur()
+            elif cloner_voix:
                 notifier(
-                    "traduction",
-                    (i + 1) / len(segments) * 100,
-                    f"Segment {i+1}/{len(segments)} traduit.",
+                    "voix", 0,
+                    f"Le clonage n'est pas disponible pour '{langue_cible}' -- voix Kokoro générique utilisée."
                 )
 
             notifier("voix", 0, "Génération de la voix traduite...")
@@ -109,18 +139,14 @@ class PipelineTraduction:
                         fin=seg.fin,
                         dossier_temp=dossier_audio_segments,
                         index=i,
+                        cloneur=cloneur,
+                        chemin_reference=chemin_reference,
                     )
                     segments_alignes.append(seg_aligne)
-                notifier(
-                    "voix",
-                    (i + 1) / len(segments) * 100,
-                    f"Voix générée {i+1}/{len(segments)}.",
-                )
+                notifier("voix", (i + 1) / len(segments) * 100, f"Voix générée {i+1}/{len(segments)}.")
 
             chemin_piste_audio = os.path.join(dossier_temp, "piste_finale.mp3")
-            construire_piste_audio_complete(
-                segments_alignes, duree_totale, chemin_piste_audio
-            )
+            construire_piste_audio_complete(segments_alignes, duree_totale, chemin_piste_audio)
 
             notifier("assemblage", 0, "Assemblage de la vidéo finale...")
             assembler_video_finale(chemin_video, chemin_piste_audio, chemin_sortie)
@@ -142,7 +168,7 @@ class PipelineTraduction:
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 4:
-        print("Usage : python pipeline.py video.mp4 langue_source langue_cible")
+        print("Usage : python pipeline.py video.mp4 langue_source langue_cible [--cloner-voix]")
         sys.exit(1)
 
     def afficher_progres(p: ProgressionEtape):
@@ -155,5 +181,6 @@ if __name__ == "__main__":
         langue_cible=sys.argv[3],
         chemin_sortie="video_traduite_finale.mp4",
         on_progress=afficher_progres,
+        cloner_voix="--cloner-voix" in sys.argv,
     )
     print(f"Vidéo finale : {resultat}")

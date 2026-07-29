@@ -18,10 +18,10 @@ l'espagnol, le français, le chinois et le japonais pour l'instant. Pour
 toute autre langue cible, ce module lève ErreurLangueNonClonable --
 à charge du pipeline appelant de basculer sur la voix générique edge-tts.
 
-Installation requise (voir README) :
-    pip install git+https://github.com/myshell-ai/OpenVoice.git
-    pip install melo-tts
-    -- puis téléchargement des checkpoints OpenVoice v2 (voir README)
+Installation requise : voir la section "Clonage de la voix d'origine"
+du README à la racine du projet -- l'installation a plusieurs étapes
+(sous-dépendances de MeloTTS, dictionnaire unidic, ressource NLTK,
+checkpoints OpenVoice) qui sont documentées en détail là-bas.
 """
 
 import os

@@ -1,11 +1,11 @@
 ﻿# Licences et conformité légale
 
 Ce document détaille les licences de chaque composant utilisé par
-VideoDubber, pour garantir une utilisation commerciale sans risque.
+Kalima, pour garantir une utilisation commerciale sans risque.
 
 ## Code du projet — MIT
 
-Le code source de VideoDubber est distribué sous licence MIT.
+Le code source de Kalima est distribué sous licence MIT.
 Vous pouvez l'utiliser, le modifier, le distribuer et le vendre
 sans restriction, à condition de conserver l'avis de copyright.
 
@@ -60,7 +60,7 @@ via Ollama offre une qualité de traduction bien supérieure :
 
 FFmpeg est utilisé comme sous-processus (pas de liaison directe).
 Il est sous licence LGPL/GPL. Son utilisation comme outil système
-n'affecte pas la licence de VideoDubber.
+n'affecte pas la licence de Kalima.
 
 ## Clonage vocal
 

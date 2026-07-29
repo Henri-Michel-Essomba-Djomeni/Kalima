@@ -43,6 +43,20 @@ Liste les 20 derniers jobs avec leur statut et progression.
 
 ---
 
+### `GET /api/langues-clonables`
+
+Retourne la liste des codes langue supportés par le clonage vocal
+(sous-ensemble de `/api/langues`, dépend d'OpenVoice/MeloTTS).
+
+**Exemple de réponse :**
+```json
+{
+  "langues": ["en", "es", "fr", "ja", "zh"]
+}
+```
+
+---
+
 ### `POST /api/traduire`
 
 Lance le pipeline de traduction sur une video uploadee.
@@ -53,6 +67,7 @@ Lance le pipeline de traduction sur une video uploadee.
 | `fichier` | File | Fichier video (MP4, MKV, MOV, WEBM, AVI) |
 | `langue_source` | String | Code ISO de la langue source |
 | `langue_cible` | String | Code ISO de la langue cible |
+| `cloner_voix` | Boolean | Cloner la voix d'origine au lieu de la voix générique (défaut : false) |
 
 **Exemple de reponse :**
 ```json

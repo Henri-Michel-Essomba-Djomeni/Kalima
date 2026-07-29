@@ -1,7 +1,7 @@
 ﻿# Clonage vocal — OpenVoice v2
 
 Le clonage vocal est une fonctionnalité **optionnelle**. Par défaut,
-VideoDubber utilise Kokoro-82M (voix pré-définies). Le clonage permet
+Kalima utilise Kokoro-82M (voix pré-définies). Le clonage permet
 d'appliquer le timbre de la voix d'origine à la traduction.
 
 ## Composants

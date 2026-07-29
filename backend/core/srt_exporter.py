@@ -64,4 +64,5 @@ def charger_transcription(chemin_json: str) -> Optional[List[dict]]:
     if not os.path.exists(chemin_json):
         return None
     with open(chemin_json, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    return data.get("segments") if isinstance(data, dict) else data

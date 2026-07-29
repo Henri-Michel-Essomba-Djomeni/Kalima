@@ -2,7 +2,7 @@
 
 ## Vue d'ensemble
 
-VideoDubber est organisé en un pipeline séquentiel à 5 étapes. Chaque
+Kalima est organisé en un pipeline séquentiel à 5 étapes. Chaque
 étape est un module indépendant, interchangeable et testable.
 
 `

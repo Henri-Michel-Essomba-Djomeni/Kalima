@@ -1,4 +1,4 @@
-# VideoDubber — Analyse commerciale, concurrentielle, légale et technique
+# Kalima — Analyse commerciale, concurrentielle, légale et technique
 
 > Recherche effectuée en juillet 2026. Sources : rapports de marché, données ARR publiques, licensing docs.
 
@@ -51,7 +51,7 @@ Des agences de localisation IA facturent de **$20K à $80K MRR** pour un service
 
 ---
 
-## 3. Opportunités de revenus pour VideoDubber
+## 3. Opportunités de revenus pour Kalima
 
 ### 3.1 SaaS — Abonnements (le plus scalable)
 
@@ -63,7 +63,7 @@ Des agences de localisation IA facturent de **$20K à $80K MRR** pour un service
 | **Scale** | $199–$299/mo (2000 min) | Studio, média |
 | **Enterprise** | Sur devis | API, SSO, SLA |
 
-*Référence : un produit nommé "VideoDubber" sur TrustMRR déclare $2,440/mo (starter $9 → scale $199).*
+*Référence : un produit nommé "Kalima" sur TrustMRR déclare $2,440/mo (starter $9 → scale $199).*
 
 ### 3.2 Paiement à l'usage
 
@@ -157,7 +157,7 @@ dans la branche `clean/legal-free`. Aucun appel réseau, aucune dépendance clou
 ### 5.2 Pas de lip-sync
 
 - Les concurrents (DubSync, Rask AI, Deepdub) proposent tous du lip-sync
-- VideoDubber se contente de remplacer la piste audio → décalage labial perceptible
+- Kalima se contente de remplacer la piste audio → décalage labial perceptible
 - **Le lip-sync est le critère d'achat #1** pour les clients professionnels
 
 ### 5.3 Pas de multi-speaker (diarization)
@@ -201,7 +201,7 @@ dans la branche `clean/legal-free`. Aucun appel réseau, aucune dépendance clou
 
 ## 7. Conclusion
 
-Le marché est massif ($1.16Md, croissance 44%/an) et en pleine expansion. VideoDubber a une base technique solide mais **ne peut pas être vendu tel quel** à cause de la licence CC BY-NC de NLLB-200 et du risque edge-tts (API Microsoft détournée). Une fois ces deux points réglés, le produit peut être commercialisé via :
+Le marché est massif ($1.16Md, croissance 44%/an) et en pleine expansion. Kalima a une base technique solide mais **ne peut pas être vendu tel quel** à cause de la licence CC BY-NC de NLLB-200 et du risque edge-tts (API Microsoft détournée). Une fois ces deux points réglés, le produit peut être commercialisé via :
 
 1. **Abonnements SaaS** (le plus scalable, marge 70-90%)
 2. **Revenue share YouTube** (zéro friction client)

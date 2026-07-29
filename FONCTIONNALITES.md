@@ -1,4 +1,4 @@
-﻿# VideoDubber — Évaluation fonctionnelle
+﻿# Kalima — Évaluation fonctionnelle
 
 ## Fonctionnalités opérationnelles
 

@@ -25,3 +25,9 @@ audioop-lts>=0.2.1; python_version >= "3.13"
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.6
 python-multipart>=0.0.9
+
+# ===== Clonage vocal (optionnel) =====
+# S'installe séparément, avec --no-deps. Voir docs/voice-cloning.md
+# pour la procédure complète (sous-dépendances, dictionnaire unidic,
+# ressource NLTK, checkpoints OpenVoice).
+unidic-lite

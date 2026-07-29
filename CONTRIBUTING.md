@@ -1,4 +1,4 @@
-﻿# Contribuer à VideoDubber
+﻿# Contribuer à Kalima
 
 ## Principes
 
