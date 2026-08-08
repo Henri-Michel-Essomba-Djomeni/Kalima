@@ -2,10 +2,11 @@ import os
 import threading
 import sys
 import secrets
-import base64
+import hashlib
+import asyncio
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request
-from fastapi.responses import FileResponse, PlainTextResponse, JSONResponse
+from fastapi.responses import FileResponse, PlainTextResponse, JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -21,37 +22,53 @@ from api.job_manager import creer_job, obtenir_job, mettre_a_jour_job, lister_jo
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOSSIER_UPLOADS = os.path.join(BASE_DIR, "uploads")
 DOSSIER_OUTPUTS = os.path.join(BASE_DIR, "outputs")
+DOSSIER_FRONTEND = os.path.join(BASE_DIR, "frontend")
 os.makedirs(DOSSIER_UPLOADS, exist_ok=True)
 os.makedirs(DOSSIER_OUTPUTS, exist_ok=True)
 
 # Identifiants d'accès -- à changer via variables d'environnement avant
 # d'exposer le serveur publiquement (tunnel, port forwarding, etc.).
+# Attention : ces variables ne survivent pas d'une fenêtre de terminal à
+# l'autre (elles sont propres à la session PowerShell qui les a définies).
+# Si tu les redéfinis puis ouvres un nouveau terminal pour lancer uvicorn,
+# les valeurs par défaut ci-dessous seront utilisées à la place.
 UTILISATEUR = os.environ.get("KALIMA_USER", "admin")
 MOT_DE_PASSE = os.environ.get("KALIMA_PASS", "changemoi")
+
+# Jeton de session : dérivé des identifiants, régénéré si tu changes le
+# mot de passe (donc toute session ouverte avec l'ancien mot de passe est
+# automatiquement invalidée). Suffisant pour une protection d'accès
+# personnelle/petite échelle -- pas une architecture d'auth "entreprise".
+_JETON_SESSION = hashlib.sha256(f"{UTILISATEUR}:{MOT_DE_PASSE}".encode()).hexdigest()
+NOM_COOKIE = "kalima_session"
+DUREE_SESSION_SECONDES = 30 * 24 * 3600  # 30 jours
+
+CHEMINS_PUBLICS = {"/login", "/api/login", "/favicon.ico"}
 
 app = FastAPI(title="Kalima API")
 
 
-class AuthentificationBasique(BaseHTTPMiddleware):
-    """Protège toutes les routes par mot de passe (HTTP Basic Auth)."""
+class AuthentificationSession(BaseHTTPMiddleware):
+    """
+    Protège toutes les routes sauf /login (page + endpoint) via un cookie
+    de session. Les requêtes API sans session valide reçoivent un 401 JSON
+    (le frontend redirige alors vers /login) ; les requêtes de page reçoivent
+    directement une redirection HTTP vers /login.
+    """
     async def dispatch(self, request: Request, call_next):
-        entete = request.headers.get("Authorization")
-        if entete and entete.startswith("Basic "):
-            try:
-                decode = base64.b64decode(entete[6:]).decode()
-                utilisateur, _, mdp = decode.partition(":")
-                if secrets.compare_digest(utilisateur, UTILISATEUR) and secrets.compare_digest(mdp, MOT_DE_PASSE):
-                    return await call_next(request)
-            except Exception:
-                pass
-        return JSONResponse(
-            {"detail": "Authentification requise."},
-            status_code=401,
-            headers={"WWW-Authenticate": "Basic realm=\"Kalima\""},
-        )
+        if request.url.path in CHEMINS_PUBLICS:
+            return await call_next(request)
+
+        cookie = request.cookies.get(NOM_COOKIE)
+        if cookie and secrets.compare_digest(cookie, _JETON_SESSION):
+            return await call_next(request)
+
+        if request.url.path.startswith("/api/"):
+            return JSONResponse({"detail": "Session expirée ou absente."}, status_code=401)
+        return RedirectResponse(url="/login", status_code=307)
 
 
-app.add_middleware(AuthentificationBasique)
+app.add_middleware(AuthentificationSession)
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,6 +76,35 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/login")
+def page_connexion():
+    chemin = os.path.join(DOSSIER_FRONTEND, "login.html")
+    return HTMLResponse(open(chemin, encoding="utf-8").read())
+
+
+@app.post("/api/login")
+async def connexion(utilisateur: str = Form(...), mot_de_passe: str = Form(...)):
+    if secrets.compare_digest(utilisateur, UTILISATEUR) and secrets.compare_digest(mot_de_passe, MOT_DE_PASSE):
+        reponse = JSONResponse({"ok": True})
+        reponse.set_cookie(
+            NOM_COOKIE, _JETON_SESSION,
+            max_age=DUREE_SESSION_SECONDES, httponly=True, samesite="lax",
+        )
+        return reponse
+    # Petit délai pour ralentir le bruteforce naïf, sans bloquer le reste
+    # du serveur pendant ce temps (sleep asynchrone, pas synchrone).
+    await asyncio.sleep(0.6)
+    raise HTTPException(401, "Identifiants incorrects.")
+
+
+@app.get("/api/logout")
+def deconnexion():
+    reponse = RedirectResponse(url="/login")
+    reponse.delete_cookie(NOM_COOKIE, path="/", samesite="lax")
+    return reponse
+
 
 _pipeline = PipelineTraduction(taille_modele_whisper="medium")
 

@@ -46,18 +46,6 @@
     pointer-events: none;
   }
 
-  .grille {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    background-image:
-      linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
-    background-size: 44px 44px;
-    mask-image: radial-gradient(ellipse 900px 500px at 50% 0%, black, transparent 70%);
-    pointer-events: none;
-  }
-
   .contenu {
     position: relative;
     z-index: 1;
@@ -89,26 +77,70 @@
     color: var(--text-muted);
   }
 
-  .waveform {
+  /* --- Hero asymétrique deux colonnes (texte + grappe de cubes) --- */
+  .hero-large {
+    position: relative;
+    z-index: 1;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 72px 32px 40px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 4px;
-    height: 46px;
-    margin-bottom: 22px;
+    justify-content: space-between;
+    gap: 40px;
+    flex-wrap: wrap;
   }
-  .waveform .barre {
-    width: 4px;
-    border-radius: 2px;
-    background: linear-gradient(to top, var(--amber), var(--coral));
-    animation: onde 1.3s ease-in-out infinite;
+  .hero-texte { flex: 1 1 380px; max-width: 460px; }
+  .hero-texte .marque { justify-content: flex-start; margin-bottom: 22px; }
+  .hero-texte h1 { text-align: left; background-position: 0 0; }
+  .hero-texte .tagline { text-align: left; margin: 14px 0 30px; max-width: 420px; }
+
+  .hero-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14.5px;
+    color: var(--bg);
+    background: linear-gradient(135deg, var(--amber), var(--coral));
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    text-decoration: none;
+    transition: filter .15s, transform .15s;
   }
-  @keyframes onde {
-    0%, 100% { height: 8px; opacity: 0.5; }
-    50% { height: var(--h, 32px); opacity: 1; }
+  .hero-cta:hover { filter: brightness(1.08); transform: translateX(2px); }
+  .hero-cta svg { width: 15px; height: 15px; }
+
+  .hero-visuel {
+    flex: 1 1 520px;
+    min-height: 620px;
+    pointer-events: none;
+  }
+
+  /* --- Cube + constellation en WebGL, plein écran fixe derrière tout
+     le contenu -- l'effet de profondeur couvre toute la page, pas
+     juste un coin, et reste visible même en scrollant plus bas. --- */
+  #cubeCanvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+  }
+
+  @media (max-width: 760px) {
+    .hero-large { flex-direction: column; text-align: center; padding-top: 48px; }
+    .hero-texte { text-align: center; max-width: 100%; }
+    .hero-texte .marque { justify-content: center; }
+    .hero-texte h1 { text-align: center; }
+    .hero-texte .tagline { text-align: center; margin-left: auto; margin-right: auto; }
   }
 
   h1 {
+    position: relative;
     font-family: 'Space Grotesk', sans-serif;
     font-weight: 700;
     font-size: clamp(36px, 8vw, 52px);
@@ -148,6 +180,7 @@
     pointer-events: none;
   }
   .carte-interieur {
+    position: relative;
     background: var(--surface);
     border-radius: calc(var(--radius-lg) - 1px);
     padding: 32px;
@@ -366,8 +399,22 @@
     font-weight: 600;
     color: var(--text-dim);
     transition: color .2s;
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
   }
   .etape.active .nom, .etape.fait .nom { color: var(--text); }
+
+  .etape .pourcentage {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--amber);
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .etape.active .pourcentage { opacity: 1; }
+  .etape.fait .pourcentage { opacity: 1; color: var(--teal); }
 
   .etape .barre {
     height: 3px;
@@ -380,9 +427,17 @@
     height: 100%;
     width: 0%;
     background: linear-gradient(90deg, var(--amber), var(--coral));
+    background-size: 200% 100%;
     transition: width .3s;
   }
-  .etape.fait .barre .remplissage { background: var(--teal); width: 100% !important; }
+  .etape.active .barre .remplissage {
+    animation: osciller-remplissage 1.4s ease-in-out infinite;
+  }
+  @keyframes osciller-remplissage {
+    0%, 100% { background-position: 0% 0%; }
+    50% { background-position: 100% 0%; }
+  }
+  .etape.fait .barre .remplissage { background: var(--teal); width: 100% !important; animation: none; }
 
   .message {
     font-family: 'JetBrains Mono', monospace;
@@ -410,6 +465,82 @@
   .telecharger.visible { display: flex; }
   .telecharger svg { width: 16px; height: 16px; }
 
+  .apercu-video {
+    display: none;
+    width: 100%;
+    max-height: 220px;
+    border-radius: var(--radius);
+    background: #000;
+    margin-bottom: 22px;
+  }
+  .apercu-video.visible { display: block; }
+
+  .historique-toggle {
+    text-align: center;
+    margin-top: 22px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color .15s;
+  }
+  .historique-toggle:hover { color: var(--amber); }
+
+  .historique {
+    display: none;
+    margin-top: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 8px;
+  }
+  .historique.visible { display: block; }
+
+  .historique-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    transition: background .15s;
+  }
+  .historique-item:hover { background: var(--surface-2); }
+
+  .historique-item .statut-point {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .historique-item .statut-point.termine { background: var(--teal); }
+  .historique-item .statut-point.en_cours { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .historique-item .statut-point.erreur { background: var(--coral); }
+  .historique-item .statut-point.en_attente { background: var(--text-dim); }
+
+  .historique-item .infos { flex: 1; min-width: 0; }
+  .historique-item .langues-paire {
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .historique-item .date-item {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 1px;
+  }
+  .historique-item a {
+    font-size: 11px;
+    color: var(--amber);
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  .historique-item a:hover { text-decoration: underline; }
+  .historique-vide {
+    text-align: center;
+    padding: 20px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+
   footer {
     text-align: center;
     margin-top: 36px;
@@ -417,21 +548,35 @@
     font-size: 11px;
     color: var(--text-dim);
   }
+  footer a {
+    color: var(--text-dim);
+    text-decoration: none;
+    transition: color .15s;
+  }
+  footer a:hover { color: var(--amber); }
+  .separateur-footer { margin: 0 6px; opacity: 0.5; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
 <div class="fond"></div>
-<div class="grille"></div>
+<canvas id="cubeCanvas"></canvas>
 
-<div class="contenu">
+<section class="hero-large">
+  <div class="hero-texte">
+    <div class="marque"><span class="point"></span><span>Traitement 100% local</span></div>
+    <h1>Kalima</h1>
+    <p class="tagline">Transcription, traduction et voix synthétique. Dépose une vidéo, choisis la langue, récupère-la doublée.</p>
+    <a href="#app" class="hero-cta">
+      Commencer
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+    </a>
+  </div>
+  <div class="hero-visuel" id="heroVisuel"></div>
+</section>
 
-  <div class="marque"><span class="point"></span><span>Traitement 100% local</span></div>
-
-  <div class="waveform" id="waveform"></div>
-
-  <h1>Kalima</h1>
-  <p class="tagline">Transcription, traduction et voix synthétique. Dépose une vidéo, choisis la langue, récupère-la doublée.</p>
+<div class="contenu" id="app">
 
   <div class="carte">
     <div class="carte-interieur">
@@ -458,6 +603,7 @@
         <div class="titre" id="dropTitre">Dépose une vidéo ou clique pour choisir</div>
         <div class="detail" id="dropDetail">MP4 · MKV · MOV — taille illimitée</div>
       </label>
+      <video class="apercu-video" id="apercuUpload" controls muted></video>
 
       <label class="clonage" id="clonageBloc">
         <input type="checkbox" id="cloneVoix">
@@ -474,40 +620,42 @@
         <div class="etape" data-etape="extraction">
           <div class="rond"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div>
           <div class="corps">
-            <div class="nom">Extraction audio</div>
+            <div class="nom">Extraction audio <span class="pourcentage" id="pct-extraction"></span></div>
             <div class="barre"><div class="remplissage"></div></div>
           </div>
         </div>
         <div class="etape" data-etape="transcription">
           <div class="rond"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path></svg></div>
           <div class="corps">
-            <div class="nom">Transcription</div>
+            <div class="nom">Transcription <span class="pourcentage" id="pct-transcription"></span></div>
             <div class="barre"><div class="remplissage"></div></div>
           </div>
         </div>
         <div class="etape" data-etape="traduction">
           <div class="rond"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path></svg></div>
           <div class="corps">
-            <div class="nom">Traduction</div>
+            <div class="nom">Traduction <span class="pourcentage" id="pct-traduction"></span></div>
             <div class="barre"><div class="remplissage"></div></div>
           </div>
         </div>
         <div class="etape" data-etape="voix">
           <div class="rond"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v1a7 7 0 0 1-14 0v-1"></path><line x1="12" y1="19" x2="12" y2="23"></line></svg></div>
           <div class="corps">
-            <div class="nom">Génération voix</div>
+            <div class="nom">Génération voix <span class="pourcentage" id="pct-voix"></span></div>
             <div class="barre"><div class="remplissage"></div></div>
           </div>
         </div>
         <div class="etape" data-etape="assemblage">
           <div class="rond"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2"></rect></svg></div>
           <div class="corps">
-            <div class="nom">Assemblage final</div>
+            <div class="nom">Assemblage final <span class="pourcentage" id="pct-assemblage"></span></div>
             <div class="barre"><div class="remplissage"></div></div>
           </div>
         </div>
         <div class="message" id="message"></div>
       </div>
+
+      <video class="apercu-video" id="apercuResultat" controls></video>
 
       <a class="telecharger" id="lienTelecharger">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -518,19 +666,192 @@
     </div>
   </div>
 
-  <footer>Pipeline : Whisper → Ollama (Qwen 3) / M2M-100 → Kokoro-82M → FFmpeg — 100 % local, libre et gratuit</footer>
+  <div class="historique-toggle" id="historiqueToggle">Voir l'historique des traductions</div>
+  <div class="historique" id="historique"></div>
+
+
+  <footer>
+    Pipeline : Whisper → Ollama (Qwen 3) / M2M-100 → Kokoro-82M → FFmpeg — 100 % local, libre et gratuit
+    <span class="separateur-footer">·</span>
+    <a href="https://github.com/nOX-OO" target="_blank" rel="noopener">Développé par nOX</a>
+    <span class="separateur-footer">·</span>
+    <a href="/api/logout">Se déconnecter</a>
+  </footer>
 
 </div>
 
 <script>
-const wf = document.getElementById('waveform');
-for (let i = 0; i < 28; i++) {
-  const b = document.createElement('div');
-  b.className = 'barre';
-  const hauteur = 10 + Math.round(Math.sin(i * 0.9) * 14 + Math.random() * 10 + 14);
-  b.style.setProperty('--h', hauteur + 'px');
-  b.style.animationDelay = (i * 0.045) + 's';
-  wf.appendChild(b);
+// Cube rendu en WebGL (Three.js), sur un canvas plein écran fixe --
+// la constellation de particules couvre toute la page, pas juste un
+// coin, et reste derrière le contenu même en scrollant. Vrai
+// mécanisme de Rubik's cube : des couches entières (9 petits cubes)
+// pivotent ensemble de 90°, jamais un cube isolé sur son propre axe.
+try {
+  const canvas = document.getElementById('cubeCanvas');
+  const heroVisuel = document.getElementById('heroVisuel');
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0.6, 11);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  function redimensionner() {
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+  }
+  redimensionner();
+  window.addEventListener('resize', redimensionner);
+
+  // --- Lumières ---
+  scene.add(new THREE.AmbientLight(0x2a1f14, 1.1));
+  const lumiereCle = new THREE.DirectionalLight(0xf5a93f, 2.4);
+  lumiereCle.position.set(4, 6, 3);
+  scene.add(lumiereCle);
+  const lumiereAppoint = new THREE.DirectionalLight(0x46c2a6, 0.75);
+  lumiereAppoint.position.set(-4, 1.5, -3);
+  scene.add(lumiereAppoint);
+  const lumiereRasante = new THREE.PointLight(0xff6b4d, 1.2, 16);
+  lumiereRasante.position.set(-2, -1, 4);
+  scene.add(lumiereRasante);
+
+  // --- Constellation répartie sur toute la vue (pas juste autour du
+  // cube), pour que l'effet de profondeur couvre la page entière.
+  function ajouterConstellation(rayonX, rayonY, profondeur, nombre) {
+    const positions = new Float32Array(nombre * 3);
+    const couleurs = new Float32Array(nombre * 3);
+    const palette = [[0.96, 0.66, 0.25], [1, 0.42, 0.30], [0.27, 0.76, 0.65]];
+    for (let i = 0; i < nombre; i++) {
+      positions[i*3] = (Math.random() - 0.5) * rayonX;
+      positions[i*3+1] = (Math.random() - 0.5) * rayonY;
+      positions[i*3+2] = (Math.random() - 0.5) * profondeur;
+      const c = palette[Math.floor(Math.random() * palette.length)];
+      couleurs[i*3] = c[0]; couleurs[i*3+1] = c[1]; couleurs[i*3+2] = c[2];
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(couleurs, 3));
+    const mat = new THREE.PointsMaterial({ size: 0.05, vertexColors: true, transparent: true, opacity: 0.55, sizeAttenuation: true });
+    const points = new THREE.Points(geo, mat);
+    scene.add(points);
+    return points;
+  }
+  const constellation = ajouterConstellation(30, 16, 14, 420);
+
+  // --- Le cube 3x3x3, décalé à droite de l'écran ---
+  const PALETTE = [0xf5a93f, 0xe8963a, 0xd97f3a, 0xc9622a, 0xffc773, 0xff6b4d, 0x241c14, 0x2e2318];
+  const ESPACE = 1.02;
+  const groupeCube = new THREE.Group();
+  const cubies = [];
+
+  for (let x = -1; x <= 1; x++) {
+    for (let y = -1; y <= 1; y++) {
+      for (let z = -1; z <= 1; z++) {
+        const couleur = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+        const materiau = new THREE.MeshStandardMaterial({
+          color: couleur,
+          metalness: 0.5 + Math.random() * 0.2,
+          roughness: 0.25 + Math.random() * 0.3,
+        });
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.94, 0.94), materiau);
+        mesh.position.set(x * ESPACE, y * ESPACE, z * ESPACE);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.userData.coord = { x, y, z };
+        groupeCube.add(mesh);
+        cubies.push(mesh);
+      }
+    }
+  }
+  groupeCube.position.set(3.1, 0, 0);
+  groupeCube.rotation.x = -0.28;
+  groupeCube.rotation.y = 0.55;
+  scene.add(groupeCube);
+
+  // --- Mécanisme de mélange façon vrai Rubik's cube ---
+  function coordApresRotation(c, axe, sens) {
+    if (axe === 'x') return sens > 0 ? { x: c.x, y: -c.z, z: c.y } : { x: c.x, y: c.z, z: -c.y };
+    if (axe === 'y') return sens > 0 ? { x: c.z, y: c.y, z: -c.x } : { x: -c.z, y: c.y, z: c.x };
+    return sens > 0 ? { x: -c.y, y: c.x, z: c.z } : { x: c.y, y: -c.x, z: c.z };
+  }
+
+  let melangeEnCours = false;
+  function prochainMelange() {
+    if (melangeEnCours) return;
+    melangeEnCours = true;
+
+    const axes = ['x', 'y', 'z'];
+    const axe = axes[Math.floor(Math.random() * 3)];
+    const couche = Math.floor(Math.random() * 3) - 1;
+    const sens = Math.random() < 0.5 ? 1 : -1;
+    const selection = cubies.filter(m => m.userData.coord[axe] === couche);
+
+    const pivot = new THREE.Group();
+    groupeCube.add(pivot);
+    selection.forEach(m => pivot.attach(m));
+
+    const duree = 650;
+    const angleCible = sens * Math.PI / 2;
+    let debut = null;
+
+    function etape(temps) {
+      if (!debut) debut = temps;
+      const progres = Math.min((temps - debut) / duree, 1);
+      const ease = progres < 0.5 ? 2 * progres * progres : 1 - Math.pow(-2 * progres + 2, 2) / 2;
+      pivot.rotation[axe] = angleCible * ease;
+      if (progres < 1) {
+        requestAnimationFrame(etape);
+      } else {
+        selection.forEach(m => {
+          groupeCube.attach(m);
+          m.userData.coord = coordApresRotation(m.userData.coord, axe, sens);
+          m.position.set(m.userData.coord.x * ESPACE, m.userData.coord.y * ESPACE, m.userData.coord.z * ESPACE);
+        });
+        groupeCube.remove(pivot);
+        melangeEnCours = false;
+      }
+    }
+    requestAnimationFrame(etape);
+  }
+  setInterval(prochainMelange, 2000);
+  setTimeout(prochainMelange, 900);
+
+  // --- Interaction souris + rotation continue rapide sur plusieurs
+  // axes à la fois (gauche-droite ET haut-bas en même temps, comme
+  // un vrai tumbling, pas juste un pivot sur un seul axe).
+  let cibleX = 0, cibleY = 0;
+  let angleY = 0.55, angleX = -0.28;
+  window.addEventListener('mousemove', e => {
+    cibleX = (e.clientX / window.innerWidth - 0.5) * 0.6;
+    cibleY = (e.clientY / window.innerHeight - 0.5) * 0.4;
+  });
+
+  function animer() {
+    angleY += 0.010;
+    angleX += 0.0065;
+    groupeCube.rotation.y = angleY + cibleX;
+    groupeCube.rotation.x = angleX + cibleY;
+    constellation.rotation.y += 0.0008;
+    renderer.render(scene, camera);
+    requestAnimationFrame(animer);
+  }
+  animer();
+} catch (erreurCube) {
+  console.error('Erreur rendu 3D du cube hero (non bloquant) :', erreurCube);
+}
+
+// Redirige vers /login si la session a expiré pendant l'usage de l'app
+async function fetchAuth(url, options) {
+  const res = await fetch(url, options);
+  if (res.status === 401) {
+    window.location.href = '/login';
+    throw new Error('Session expirée');
+  }
+  return res;
 }
 
 const NOMS_LANGUES = {
@@ -550,6 +871,10 @@ const timeline = document.getElementById('timeline');
 const messageEl = document.getElementById('message');
 const lienTelecharger = document.getElementById('lienTelecharger');
 const lienSousTitres = document.getElementById('lienSousTitres');
+const apercuUpload = document.getElementById('apercuUpload');
+const apercuResultat = document.getElementById('apercuResultat');
+const historiqueToggle = document.getElementById('historiqueToggle');
+const historiquePanneau = document.getElementById('historique');
 const swapBtn = document.getElementById('swapLangues');
 const cloneVoix = document.getElementById('cloneVoix');
 const clonageBloc = document.getElementById('clonageBloc');
@@ -561,7 +886,7 @@ let LANGUES_CLONABLES = [];
 async function chargerLangues() {
   let codes = Object.keys(NOMS_LANGUES);
   try {
-    const res = await fetch('/api/langues');
+    const res = await fetchAuth('/api/langues');
     const data = await res.json();
     if (data.langues && data.langues.length) codes = data.langues;
   } catch (e) { }
@@ -573,7 +898,7 @@ async function chargerLangues() {
 
 async function chargerLanguesClonables() {
   try {
-    const res = await fetch('/api/langues-clonables');
+    const res = await fetchAuth('/api/langues-clonables');
     const data = await res.json();
     LANGUES_CLONABLES = data.langues || [];
   } catch (e) { LANGUES_CLONABLES = []; }
@@ -620,17 +945,24 @@ function gererFichier(fichier) {
   dropTitre.textContent = fichier.name;
   dropDetail.textContent = `${(fichier.size / (1024*1024)).toFixed(1)} Mo`;
   btnLancer.disabled = false;
+
+  if (apercuUpload.src) URL.revokeObjectURL(apercuUpload.src);
+  apercuUpload.src = URL.createObjectURL(fichier);
+  apercuUpload.classList.add('visible');
 }
 
 function reinitialiserTimeline() {
   document.querySelectorAll('.etape').forEach(el => {
     el.classList.remove('active', 'fait');
     el.querySelector('.remplissage').style.width = '0%';
+    const badgePct = document.getElementById('pct-' + el.dataset.etape);
+    if (badgePct) badgePct.textContent = '';
   });
   messageEl.textContent = '';
   messageEl.classList.remove('erreur');
   lienTelecharger.classList.remove('visible');
   lienSousTitres.style.display = 'none';
+  apercuResultat.classList.remove('visible');
 }
 
 function ordreEtape(nom) {
@@ -640,10 +972,12 @@ function ordreEtape(nom) {
 function majEtape(etape, pourcentage, message) {
   document.querySelectorAll('.etape').forEach(el => {
     const nomEtape = el.dataset.etape;
+    const badgePct = document.getElementById('pct-' + nomEtape);
     if (nomEtape === etape) {
       el.classList.add('active');
       el.classList.remove('fait');
       el.querySelector('.remplissage').style.width = pourcentage + '%';
+      if (badgePct) badgePct.textContent = Math.round(pourcentage) + '%';
       if (pourcentage >= 100) {
         el.classList.add('fait');
         el.classList.remove('active');
@@ -651,6 +985,7 @@ function majEtape(etape, pourcentage, message) {
     } else if (ordreEtape(nomEtape) < ordreEtape(etape)) {
       el.classList.add('fait');
       el.classList.remove('active');
+      if (badgePct) badgePct.textContent = '100%';
     }
   });
   messageEl.textContent = message || '';
@@ -670,7 +1005,7 @@ btnLancer.addEventListener('click', async () => {
   formData.append('cloner_voix', cloneVoix.checked);
 
   try {
-    const res = await fetch('/api/traduire', { method: 'POST', body: formData });
+    const res = await fetchAuth('/api/traduire', { method: 'POST', body: formData });
     if (!res.ok) throw new Error("Échec de l'envoi.");
     const { job_id } = await res.json();
     btnLancer.textContent = 'Traitement en cours...';
@@ -686,7 +1021,7 @@ btnLancer.addEventListener('click', async () => {
 function suivreProgression(jobId) {
   const intervalle = setInterval(async () => {
     try {
-      const res = await fetch(`/api/statut/${jobId}`);
+      const res = await fetchAuth(`/api/statut/${jobId}`);
       const statut = await res.json();
 
       if (statut.statut === 'erreur') {
@@ -709,12 +1044,58 @@ function suivreProgression(jobId) {
         lienTelecharger.classList.add('visible');
         lienSousTitres.href = `/api/sous-titres/${jobId}?format=srt`;
         lienSousTitres.style.display = 'block';
+        apercuResultat.src = `/api/telecharger/${jobId}`;
+        apercuResultat.classList.add('visible');
         btnLancer.disabled = false;
         btnLancer.textContent = 'Traduire une autre vidéo';
+        if (historiquePanneau.classList.contains('visible')) chargerHistorique();
       }
     } catch (e) { }
   }, 1500);
 }
+
+function formaterDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' +
+         d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+async function chargerHistorique() {
+  historiquePanneau.innerHTML = '<div class="historique-vide">Chargement...</div>';
+  try {
+    const res = await fetchAuth('/api/jobs');
+    const data = await res.json();
+    const jobs = data.jobs || [];
+    if (!jobs.length) {
+      historiquePanneau.innerHTML = '<div class="historique-vide">Aucune traduction pour l\'instant.</div>';
+      return;
+    }
+    historiquePanneau.innerHTML = jobs.map(j => {
+      const paire = `${(NOMS_LANGUES[j.langue_source]||j.langue_source||'?')} → ${(NOMS_LANGUES[j.langue_cible]||j.langue_cible||'?')}`;
+      const lien = j.statut === 'termine'
+        ? `<a href="/api/telecharger/${j.id}">Télécharger</a>`
+        : `<span style="color:var(--text-dim);font-size:11px;">${j.statut === 'erreur' ? 'Erreur' : 'En cours...'}</span>`;
+      return `
+        <div class="historique-item">
+          <span class="statut-point ${j.statut}"></span>
+          <div class="infos">
+            <div class="langues-paire">${paire}</div>
+            <div class="date-item">${formaterDate(j.cree_le)}</div>
+          </div>
+          ${lien}
+        </div>`;
+    }).join('');
+  } catch (e) {
+    historiquePanneau.innerHTML = '<div class="historique-vide">Impossible de charger l\'historique.</div>';
+  }
+}
+
+historiqueToggle.addEventListener('click', () => {
+  const visible = historiquePanneau.classList.toggle('visible');
+  historiqueToggle.textContent = visible ? 'Masquer l\'historique' : 'Voir l\'historique des traductions';
+  if (visible) chargerHistorique();
+});
 </script>
 
 </body>
