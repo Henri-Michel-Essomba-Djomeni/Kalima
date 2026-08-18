@@ -34,7 +34,7 @@ CODES_LANGUES_OLLAMA = {
 CODES_LANGUES = {**CODES_LANGUES_M2M, **CODES_LANGUES_OLLAMA}
 
 URL_OLLAMA = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-MODELE_OLLAMA = os.environ.get("OLLAMA_MODELE", "qwen3:7b")
+MODELE_OLLAMA = os.environ.get("OLLAMA_MODELE", "qwen3:4b")
 _M2M_NOM_MODELE = "facebook/m2m100_418M"
 
 

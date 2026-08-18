@@ -18,6 +18,7 @@ ollama>=0.3
 
 # ===== Utilitaires =====
 requests>=2.31.0
+yt-dlp>=2024.8.6
 
 # ===== Compatibilité Python 3.13+ =====
 audioop-lts>=0.2.1; python_version >= "3.13"

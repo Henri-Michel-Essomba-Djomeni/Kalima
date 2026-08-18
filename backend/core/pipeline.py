@@ -12,6 +12,10 @@ from .audio_aligner import generer_segment_calibre, construire_piste_audio_compl
 from .video_assembler import assembler_video_finale
 from .voice_reference import extraire_echantillon_reference
 from .voice_cloner import ClonageVoix, langue_est_clonable
+from .srt_exporter import segments_vers_srt, segments_vers_texte
+from .subtitle_embedder import incruster_sous_titres
+from .resumeur import resumer_texte
+from .transcription_cache import calculer_empreinte, lire_cache, ecrire_cache
 
 
 @dataclass
@@ -22,6 +26,13 @@ class ProgressionEtape:
 
 
 TypeCallback = Optional[Callable[[ProgressionEtape], None]]
+
+# Modes disponibles :
+#  - "doublage"     : pipeline complet, voix traduite + vidéo finale (comportement historique)
+#  - "sous_titres"  : transcription + traduction, incrustées en piste texte, AUDIO JAMAIS TOUCHÉ
+#  - "transcription": transcription (+ traduction si langues différentes), export texte seul
+#  - "resume"       : transcription + traduction + résumé via LLM (Ollama), export texte seul
+MODES_VALIDES = {"doublage", "sous_titres", "transcription", "resume"}
 
 
 class PipelineTraduction:
@@ -54,35 +65,48 @@ class PipelineTraduction:
         chemin_sortie: str,
         on_progress: TypeCallback = None,
         cloner_voix: bool = False,
+        mode: str = "doublage",
+        marquage: bool = True,
     ) -> str:
+        if mode not in MODES_VALIDES:
+            raise ValueError(f"Mode inconnu : '{mode}'. Valides : {MODES_VALIDES}")
+
         def notifier(etape, pct, msg):
             if on_progress:
                 on_progress(ProgressionEtape(etape=etape, pourcentage=pct, message=msg))
 
         dossier_temp = tempfile.mkdtemp(prefix="videotrans_")
         try:
+            # --- Étapes communes à tous les modes : extraction + transcription ---
             notifier("extraction", 0, "Extraction de la piste audio...")
             chemin_audio = os.path.join(dossier_temp, "audio_source.wav")
             extraire_audio(chemin_video, chemin_audio)
             duree_totale = obtenir_duree_video(chemin_video)
             notifier("extraction", 100, "Audio extrait.")
 
-            # Détection automatique de la langue, avec progression segment
-            # par segment (essentiel sur les vidéos longues où la
-            # transcription peut prendre plusieurs dizaines de minutes).
-            notifier("transcription", 0, "Transcription en cours...")
-            transcripteur = self._get_transcripteur()
+            notifier("transcription", 0, "Vérification de la mémoire (empreinte de la vidéo)...")
+            empreinte = calculer_empreinte(chemin_video)
+            segments = lire_cache(empreinte)
 
-            def on_segment(temps_actuel, duree_totale_audio):
-                if duree_totale_audio:
-                    pct = min(temps_actuel / duree_totale_audio * 100, 99)
-                    notifier("transcription", pct, f"{temps_actuel:.0f}s / {duree_totale_audio:.0f}s transcrits...")
+            if segments:
+                notifier(
+                    "transcription", 100,
+                    f"{len(segments)} segments récupérés de la mémoire -- cette vidéo a déjà été transcrite récemment."
+                )
+            else:
+                transcripteur = self._get_transcripteur()
 
-            segments = transcripteur.transcrire(
-                chemin_audio, langue_source=None,
-                duree_totale=duree_totale, on_segment=on_segment,
-            )
-            notifier("transcription", 100, f"{len(segments)} segments transcrits.")
+                def on_segment(temps_actuel, duree_totale_audio):
+                    if duree_totale_audio:
+                        pct = min(temps_actuel / duree_totale_audio * 100, 99)
+                        notifier("transcription", pct, f"{temps_actuel:.0f}s / {duree_totale_audio:.0f}s transcrits...")
+
+                segments = transcripteur.transcrire(
+                    chemin_audio, langue_source=None,
+                    duree_totale=duree_totale, on_segment=on_segment,
+                )
+                notifier("transcription", 100, f"{len(segments)} segments transcrits.")
+                ecrire_cache(empreinte, segments)
 
             if segments and segments[0].langue_detectee != langue_source:
                 notifier(
@@ -95,12 +119,15 @@ class PipelineTraduction:
             if not segments:
                 raise RuntimeError("Aucune parole détectée dans la vidéo.")
 
-            notifier("traduction", 0, "Traduction des segments...")
-            traducteur = self._get_traducteur()
+            # --- Traduction (commune à tous les modes sauf si les langues
+            # sont identiques, auquel cas ça n'aurait aucun sens) ---
+            besoin_traduction = langue_source != langue_cible
+            notifier("traduction", 0, "Traduction des segments..." if besoin_traduction else "Langues identiques, pas de traduction nécessaire.")
+            traducteur = self._get_traducteur() if besoin_traduction else None
             textes_traduits = []
             donnees_segments = []
             for i, seg in enumerate(segments):
-                texte_traduit = traducteur.traduire_texte(seg.texte, langue_source, langue_cible)
+                texte_traduit = traducteur.traduire_texte(seg.texte, langue_source, langue_cible) if besoin_traduction else seg.texte
                 textes_traduits.append(texte_traduit)
                 donnees_segments.append({
                     "index": i,
@@ -109,10 +136,45 @@ class PipelineTraduction:
                     "texte_original": seg.texte,
                     "traduction": texte_traduit,
                 })
-                notifier("traduction", (i + 1) / len(segments) * 100, f"Segment {i+1}/{len(segments)} traduit.")
+                notifier("traduction", (i + 1) / len(segments) * 100, f"Segment {i+1}/{len(segments)} traité.")
 
-            # Clonage vocal : extraction de la référence si demandé et
-            # possible pour la langue cible, sinon repli sur Kokoro-82M.
+            chemin_json = None
+            if chemin_sortie.endswith(".mp4"):
+                chemin_json = chemin_sortie.replace(".mp4", "_transcription.json")
+            self._ecrire_json_transcription(chemin_json, langue_source, langue_cible, donnees_segments)
+
+            # ================= MODE : TRANSCRIPTION SEULE =================
+            if mode == "transcription":
+                notifier("voix", 100, "Mode transcription seule -- pas de génération vocale.")
+                notifier("assemblage", 100, "Transcription prête.")
+                texte_final = segments_vers_texte(donnees_segments)
+                with open(chemin_sortie, "w", encoding="utf-8") as f:
+                    f.write(texte_final)
+                return chemin_sortie
+
+            # ================= MODE : RÉSUMÉ =================
+            if mode == "resume":
+                notifier("voix", 30, "Génération du résumé (Ollama)...")
+                texte_complet = " ".join(s["traduction"] for s in donnees_segments)
+                resume = resumer_texte(texte_complet, langue=langue_cible)
+                notifier("voix", 100, "Résumé généré.")
+                notifier("assemblage", 100, "Résumé prêt.")
+                with open(chemin_sortie, "w", encoding="utf-8") as f:
+                    f.write(resume)
+                return chemin_sortie
+
+            # ================= MODE : SOUS-TITRES SEULS =================
+            if mode == "sous_titres":
+                notifier("voix", 100, "Mode sous-titres seuls -- audio d'origine conservé tel quel.")
+                notifier("assemblage", 0, "Incrustation des sous-titres...")
+                chemin_srt = os.path.join(dossier_temp, "sous_titres.srt")
+                with open(chemin_srt, "w", encoding="utf-8") as f:
+                    f.write(segments_vers_srt(donnees_segments))
+                incruster_sous_titres(chemin_video, chemin_srt, chemin_sortie, marquage=marquage)
+                notifier("assemblage", 100, "Terminé !")
+                return chemin_sortie
+
+            # ================= MODE : DOUBLAGE COMPLET (par défaut) =================
             cloneur = None
             chemin_reference = None
             if cloner_voix and langue_est_clonable(langue_cible):
@@ -149,38 +211,49 @@ class PipelineTraduction:
             construire_piste_audio_complete(segments_alignes, duree_totale, chemin_piste_audio)
 
             notifier("assemblage", 0, "Assemblage de la vidéo finale...")
-            assembler_video_finale(chemin_video, chemin_piste_audio, chemin_sortie)
+            assembler_video_finale(chemin_video, chemin_piste_audio, chemin_sortie, marquage=marquage)
             notifier("assemblage", 100, "Terminé !")
-
-            chemin_json = chemin_sortie.replace(".mp4", "_transcription.json")
-            with open(chemin_json, "w", encoding="utf-8") as f:
-                json.dump({
-                    "langue_source": langue_source,
-                    "langue_cible": langue_cible,
-                    "segments": donnees_segments,
-                }, f, ensure_ascii=False, indent=2)
 
             return chemin_sortie
         finally:
             shutil.rmtree(dossier_temp, ignore_errors=True)
 
+    @staticmethod
+    def _ecrire_json_transcription(chemin_json, langue_source, langue_cible, donnees_segments):
+        if not chemin_json:
+            return
+        with open(chemin_json, "w", encoding="utf-8") as f:
+            json.dump({
+                "langue_source": langue_source,
+                "langue_cible": langue_cible,
+                "segments": donnees_segments,
+            }, f, ensure_ascii=False, indent=2)
+
 
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 4:
-        print("Usage : python pipeline.py video.mp4 langue_source langue_cible [--cloner-voix]")
+        print("Usage : python pipeline.py video.mp4 langue_source langue_cible [--cloner-voix] [--mode=doublage|sous_titres|transcription|resume]")
         sys.exit(1)
 
     def afficher_progres(p: ProgressionEtape):
         print(f"[{p.etape}] {p.pourcentage:.0f}% - {p.message}")
+
+    mode_choisi = "doublage"
+    for arg in sys.argv:
+        if arg.startswith("--mode="):
+            mode_choisi = arg.split("=", 1)[1]
+
+    extension = ".mp4" if mode_choisi in ("doublage", "sous_titres") else ".txt"
 
     pipeline = PipelineTraduction()
     resultat = pipeline.executer(
         chemin_video=sys.argv[1],
         langue_source=sys.argv[2],
         langue_cible=sys.argv[3],
-        chemin_sortie="video_traduite_finale.mp4",
+        chemin_sortie=f"resultat_kalima{extension}",
         on_progress=afficher_progres,
         cloner_voix="--cloner-voix" in sys.argv,
+        mode=mode_choisi,
     )
-    print(f"Vidéo finale : {resultat}")
+    print(f"Résultat : {resultat}")

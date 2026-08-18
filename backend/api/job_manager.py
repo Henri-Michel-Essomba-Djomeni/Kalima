@@ -43,6 +43,7 @@ class Job:
     langue_source: str = ""
     langue_cible: str = ""
     cree_le: str = ""
+    mode: str = "doublage"
 
 
 _verrou = threading.Lock()
@@ -61,21 +62,28 @@ def _init_db():
             "erreur TEXT, "
             "langue_source TEXT DEFAULT '', "
             "langue_cible TEXT DEFAULT '', "
-            "cree_le TEXT NOT NULL)"
+            "cree_le TEXT NOT NULL, "
+            "mode TEXT DEFAULT 'doublage')"
         )
+        # Migration douce : ajoute la colonne si la base existait déjà
+        # sans elle (créée avant l'introduction des modes).
+        try:
+            conn.execute("ALTER TABLE jobs ADD COLUMN mode TEXT DEFAULT 'doublage'")
+        except sqlite3.OperationalError:
+            pass  # la colonne existe déjà
 
 
 _init_db()
 
 
-def creer_job(langue_source: str = "", langue_cible: str = "") -> Job:
+def creer_job(langue_source: str = "", langue_cible: str = "", mode: str = "doublage") -> Job:
     job_id = str(uuid.uuid4())
     maintenant = datetime.utcnow().isoformat()
     with _verrou, sqlite3.connect(CHEMIN_DB) as conn:
         conn.execute(
-            "INSERT INTO jobs (id, statut, langue_source, langue_cible, cree_le) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (job_id, StatutJob.EN_ATTENTE.value, langue_source, langue_cible, maintenant),
+            "INSERT INTO jobs (id, statut, langue_source, langue_cible, cree_le, mode) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (job_id, StatutJob.EN_ATTENTE.value, langue_source, langue_cible, maintenant, mode),
         )
     return Job(
         id=job_id,
@@ -83,6 +91,7 @@ def creer_job(langue_source: str = "", langue_cible: str = "") -> Job:
         langue_source=langue_source,
         langue_cible=langue_cible,
         cree_le=maintenant,
+        mode=mode,
     )
 
 
@@ -103,6 +112,7 @@ def obtenir_job(job_id: str) -> Optional[Job]:
         langue_source=ligne["langue_source"],
         langue_cible=ligne["langue_cible"],
         cree_le=ligne["cree_le"],
+        mode=ligne["mode"] if "mode" in ligne.keys() else "doublage",
     )
 
 
@@ -140,6 +150,7 @@ def lister_jobs(limite: int = 20) -> list[Job]:
             langue_source=l["langue_source"],
             langue_cible=l["langue_cible"],
             cree_le=l["cree_le"],
+            mode=l["mode"] if "mode" in l.keys() else "doublage",
         )
         for l in lignes
     ]

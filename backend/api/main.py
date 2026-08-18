@@ -17,6 +17,7 @@ from core.pipeline import PipelineTraduction, ProgressionEtape
 from core.translator import CODES_LANGUES
 from core.voice_cloner import LANGUES_CLONABLES
 from core.srt_exporter import segments_vers_srt, segments_vers_vtt, segments_vers_texte, charger_transcription
+from core.youtube_downloader import telecharger_video, ErreurTelechargement
 from api.job_manager import creer_job, obtenir_job, mettre_a_jour_job, lister_jobs, StatutJob
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -109,10 +110,25 @@ def deconnexion():
 _pipeline = PipelineTraduction(taille_modele_whisper="medium")
 
 
+MODES_VERS_EXTENSION = {
+    "doublage": ".mp4",
+    "sous_titres": ".mp4",
+    "transcription": ".txt",
+    "resume": ".txt",
+}
+
+
 def _executer_job_en_arriere_plan(
-    job_id: str, chemin_video: str, langue_source: str, langue_cible: str, cloner_voix: bool = False
+    job_id: str,
+    chemin_video: str,
+    youtube_url: str,
+    langue_source: str,
+    langue_cible: str,
+    cloner_voix: bool,
+    mode: str,
 ):
-    chemin_sortie = os.path.join(DOSSIER_OUTPUTS, f"{job_id}.mp4")
+    extension = MODES_VERS_EXTENSION.get(mode, ".mp4")
+    chemin_sortie = os.path.join(DOSSIER_OUTPUTS, f"{job_id}{extension}")
 
     def on_progress(p: ProgressionEtape):
         mettre_a_jour_job(
@@ -124,6 +140,14 @@ def _executer_job_en_arriere_plan(
         )
 
     try:
+        # Si l'entrée est un lien YouTube plutôt qu'un fichier uploadé,
+        # on la télécharge d'abord -- le reste du pipeline ne voit
+        # ensuite aucune différence avec un fichier local classique.
+        if youtube_url:
+            on_progress(ProgressionEtape("extraction", 0, "Téléchargement de la vidéo YouTube..."))
+            chemin_video = telecharger_video(youtube_url, DOSSIER_UPLOADS, job_id)
+            on_progress(ProgressionEtape("extraction", 100, "Vidéo téléchargée."))
+
         _pipeline.executer(
             chemin_video=chemin_video,
             langue_source=langue_source,
@@ -131,17 +155,20 @@ def _executer_job_en_arriere_plan(
             chemin_sortie=chemin_sortie,
             on_progress=on_progress,
             cloner_voix=cloner_voix,
+            mode=mode,
         )
         mettre_a_jour_job(
             job_id,
             statut=StatutJob.TERMINE,
             chemin_video_sortie=chemin_sortie,
-            message="Traduction terminée.",
+            message="Traitement terminé.",
         )
+    except ErreurTelechargement as e:
+        mettre_a_jour_job(job_id, statut=StatutJob.ERREUR, erreur=str(e))
     except Exception as e:
         mettre_a_jour_job(job_id, statut=StatutJob.ERREUR, erreur=str(e))
     finally:
-        if os.path.exists(chemin_video):
+        if chemin_video and os.path.exists(chemin_video):
             os.remove(chemin_video)
 
 
@@ -166,32 +193,43 @@ def lister_tous_les_jobs():
         "langue_source": j.langue_source,
         "langue_cible": j.langue_cible,
         "cree_le": j.cree_le,
+        "mode": j.mode,
     } for j in lister_jobs()]}
 
 
 @app.post("/api/traduire")
 async def lancer_traduction(
-    fichier: UploadFile = File(...),
+    fichier: UploadFile = File(None),
+    youtube_url: str = Form(None),
     langue_source: str = Form(...),
     langue_cible: str = Form(...),
     cloner_voix: bool = Form(False),
+    mode: str = Form("doublage"),
 ):
     if langue_source not in CODES_LANGUES or langue_cible not in CODES_LANGUES:
         raise HTTPException(400, "Langue non supportée.")
 
-    job = creer_job(langue_source=langue_source, langue_cible=langue_cible)
-    chemin_video = os.path.join(DOSSIER_UPLOADS, f"{job.id}_{fichier.filename}")
+    if mode not in MODES_VERS_EXTENSION:
+        raise HTTPException(400, f"Mode non supporté : '{mode}'.")
 
-    with open(chemin_video, "wb") as f:
-        while True:
-            morceau = await fichier.read(1024 * 1024)
-            if not morceau:
-                break
-            f.write(morceau)
+    if not fichier and not youtube_url:
+        raise HTTPException(400, "Il faut fournir soit un fichier, soit un lien YouTube.")
+
+    job = creer_job(langue_source=langue_source, langue_cible=langue_cible, mode=mode)
+    chemin_video = None
+
+    if fichier:
+        chemin_video = os.path.join(DOSSIER_UPLOADS, f"{job.id}_{fichier.filename}")
+        with open(chemin_video, "wb") as f:
+            while True:
+                morceau = await fichier.read(1024 * 1024)
+                if not morceau:
+                    break
+                f.write(morceau)
 
     thread = threading.Thread(
         target=_executer_job_en_arriere_plan,
-        args=(job.id, chemin_video, langue_source, langue_cible, cloner_voix),
+        args=(job.id, chemin_video, youtube_url, langue_source, langue_cible, cloner_voix, mode),
         daemon=True,
     )
     thread.start()
@@ -217,7 +255,17 @@ def statut_job(job_id: str):
 def telecharger(job_id: str):
     job = obtenir_job(job_id)
     if job is None or job.statut != StatutJob.TERMINE or not job.chemin_video_sortie:
-        raise HTTPException(404, "Vidéo non disponible.")
+        raise HTTPException(404, "Résultat non disponible.")
+
+    if job.chemin_video_sortie.endswith(".txt"):
+        noms = {"transcription": "transcription", "resume": "resume"}
+        nom = noms.get(job.mode, "resultat")
+        return FileResponse(
+            job.chemin_video_sortie,
+            media_type="text/plain",
+            filename=f"{nom}_{job_id}.txt",
+        )
+
     return FileResponse(
         job.chemin_video_sortie,
         media_type="video/mp4",
