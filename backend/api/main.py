@@ -210,6 +210,11 @@ def lister_tous_les_jobs():
     } for j in lister_jobs()]}
 
 
+@app.get("/api/langues-clonables")
+def lister_langues_clonables():
+    return {"langues": sorted(LANGUES_CLONABLES.keys())}
+
+
 @app.post("/api/traduire")
 async def lancer_traduction(
     fichier: UploadFile = File(None),
