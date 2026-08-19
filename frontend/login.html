@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connexion — Kalima</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #14171d;
+    --surface-2: #1b1f27;
+    --border: #262b34;
+    --text: #f3f0e8;
+    --text-muted: #7d8290;
+    --text-dim: #4d515c;
+    --amber: #f5a93f;
+    --coral: #ff6b4d;
+    --teal: #46c2a6;
+    --radius-lg: 20px;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    position: relative;
+    min-height: 100vh;
+  }
+  .fond {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(circle 700px at 25% 20%, rgba(245,169,63,0.08), transparent 60%),
+      radial-gradient(circle 800px at 80% 80%, rgba(70,194,166,0.06), transparent 60%);
+    pointer-events: none;
+  }
+  #cubeCanvas {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+  }
+
+  .page-connexion {
+    position: relative;
+    z-index: 2;
+    min-height: 100vh;
+    display: flex;
+    justify-content: flex-end;
+    padding: 60px 8% 60px 20px;
+  }
+  .colonne-droite {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .carte-connexion {
+    position: relative;
+    width: 100%;
+    background: linear-gradient(160deg, rgba(20,23,29,0.88), rgba(27,31,39,0.88));
+    backdrop-filter: blur(10px);
+    border-radius: var(--radius-lg);
+    padding: 1px;
+  }
+  .carte-connexion::before {
+    content: '';
+    position: absolute; inset: 0;
+    border-radius: var(--radius-lg);
+    padding: 1px;
+    background: linear-gradient(160deg, rgba(245,169,63,0.35), rgba(255,255,255,0.03) 40%, rgba(70,194,166,0.2));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+  .interieur { position: relative; background: rgba(20,23,29,0.6); border-radius: calc(var(--radius-lg) - 1px); padding: 36px 32px; }
+
+  .marque-login { display: flex; align-items: center; gap: 8px; justify-content: center; margin-bottom: 22px; }
+  .marque-login .point { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+  .marque-login span { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px; letter-spacing: -0.01em; }
+
+  h1 { font-size: 15px; font-weight: 600; text-align: center; margin-bottom: 4px; }
+  .sous-titre { font-size: 12.5px; color: var(--text-muted); text-align: center; margin-bottom: 26px; }
+
+  label { display: block; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); margin-bottom: 6px; }
+  input {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    padding: 12px 13px;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    transition: border-color .15s;
+  }
+  input:focus { outline: none; border-color: var(--amber); }
+
+  .champ-mdp { position: relative; }
+  .champ-mdp input { padding-right: 42px; }
+  .bouton-oeil {
+    position: absolute;
+    right: 10px; top: 10px;
+    width: 26px; height: 26px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .bouton-oeil:hover { color: var(--amber); }
+  .bouton-oeil svg { width: 17px; height: 17px; }
+
+  button.principal {
+    width: 100%;
+    background: linear-gradient(135deg, var(--amber), var(--coral));
+    color: #1a1204;
+    border: none;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 14.5px;
+    padding: 13px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    margin-top: 6px;
+    transition: filter .15s, transform .1s;
+  }
+  button.principal:hover { filter: brightness(1.08); }
+  button.principal:active { transform: scale(0.99); }
+  button.principal:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .erreur {
+    display: none;
+    background: rgba(255,107,77,0.1);
+    border: 1px solid var(--coral);
+    color: var(--coral);
+    font-size: 12.5px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+  }
+  .erreur.visible { display: block; }
+
+  .debug-ligne {
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 14px;
+    min-height: 14px;
+  }
+
+  /* --- Contenu additionnel sous la carte, pour un site un peu vivant
+     plutôt qu'un simple écran de connexion isolé. --- */
+  .section-info {
+    margin-top: 44px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+  }
+  .section-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--amber);
+    margin-bottom: 10px;
+  }
+  .section-titre-info {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    margin-bottom: 12px;
+  }
+  .section-texte {
+    font-size: 13.5px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+  .liste-fonctions {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .liste-fonctions li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .liste-fonctions .puce {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--amber);
+    margin-top: 6px;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px var(--amber);
+  }
+  .credit-nox {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .credit-nox a { color: var(--text-dim); text-decoration: none; transition: color .15s; }
+  .credit-nox a:hover { color: var(--amber); }
+
+  @media (max-width: 760px) {
+    .page-connexion { justify-content: center; padding: 40px 20px; }
+    .colonne-droite { max-width: 420px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="fond"></div>
+<canvas id="cubeCanvas"></canvas>
+
+<div class="page-connexion">
+<div class="colonne-droite">
+
+<div class="carte-connexion">
+  <div class="interieur">
+    <div class="marque-login"><span class="point"></span><span>Kalima</span></div>
+    <h1>Accès protégé</h1>
+    <p class="sous-titre">Connecte-toi pour accéder à l'application</p>
+
+    <div class="erreur" id="erreurMsg">Identifiants incorrects.</div>
+
+    <form id="formLogin" novalidate>
+      <label for="utilisateur">Utilisateur</label>
+      <input type="text" id="utilisateur" name="utilisateur" autocomplete="username" required autofocus>
+
+      <label for="motDePasse">Mot de passe</label>
+      <div class="champ-mdp">
+        <input type="password" id="motDePasse" name="motDePasse" autocomplete="current-password" required>
+        <button type="button" class="bouton-oeil" id="boutonOeil" aria-label="Afficher le mot de passe">
+          <svg id="iconeOeil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </button>
+      </div>
+
+      <button type="submit" class="principal" id="btnConnexion">Se connecter</button>
+    </form>
+    <div class="debug-ligne" id="debugLigne">prêt.</div>
+  </div>
+</div>
+
+<div class="section-info">
+  <div class="section-eyebrow">À propos</div>
+  <div class="section-titre-info">Doublage vidéo, entièrement local</div>
+  <p class="section-texte">
+    Kalima transcrit, traduit et régénère la voix de tes vidéos --
+    y compris en clonant la voix d'origine. Aucune donnée n'est
+    envoyée à un service tiers pour le traitement.
+  </p>
+  <ul class="liste-fonctions">
+    <li><span class="puce"></span>Transcription automatique (Whisper)</li>
+    <li><span class="puce"></span>Traduction multilingue (Ollama / M2M-100)</li>
+    <li><span class="puce"></span>Voix générique ou clonage de la voix d'origine</li>
+    <li><span class="puce"></span>Export des sous-titres (SRT / VTT)</li>
+  </ul>
+</div>
+
+<div class="credit-nox">
+  Pipeline : Whisper → Ollama / M2M-100 → Kokoro-82M → FFmpeg
+  <br>
+  <a href="https://github.com/nOX-OO" target="_blank" rel="noopener">Développé par nOX</a>
+</div>
+
+</div>
+</div>
+
+<script>
+/* ============================================================
+   PARTIE 1 -- Formulaire de connexion.
+   ============================================================ */
+(function () {
+  var form = document.getElementById('formLogin');
+  var erreurMsg = document.getElementById('erreurMsg');
+  var btn = document.getElementById('btnConnexion');
+  var champMdp = document.getElementById('motDePasse');
+  var boutonOeil = document.getElementById('boutonOeil');
+  var iconeOeil = document.getElementById('iconeOeil');
+  var debugLigne = document.getElementById('debugLigne');
+
+  console.log('[Kalima login] script chargé. form =', form, ' bouton =', btn);
+  debugLigne.textContent = 'script chargé, en attente.';
+
+  boutonOeil.addEventListener('click', function () {
+    var visible = champMdp.type === 'text';
+    champMdp.type = visible ? 'password' : 'text';
+    iconeOeil.innerHTML = visible
+      ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>'
+      : '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.7 18.7 0 0 1 5.06-5.94M9.9 4.24A10.9 10.9 0 0 1 12 4c7 0 11 8 11 8a18.6 18.6 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+  });
+
+  var enVol = false;
+
+  function tenterConnexion(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    console.log('[Kalima login] clic/soumission détecté.');
+    debugLigne.textContent = 'clic détecté...';
+
+    if (enVol) { console.log('[Kalima login] requête déjà en cours, ignoré.'); return; }
+    enVol = true;
+
+    erreurMsg.classList.remove('visible');
+    btn.disabled = true;
+    btn.textContent = 'Connexion...';
+    debugLigne.textContent = 'Envoi de la requête à /api/login...';
+
+    var utilisateur = document.getElementById('utilisateur').value;
+    var motDePasse = champMdp.value;
+
+    var donnees = new FormData();
+    donnees.append('utilisateur', utilisateur);
+    donnees.append('mot_de_passe', motDePasse);
+
+    var controleur = new AbortController();
+    var delaiMax = setTimeout(function () { controleur.abort(); }, 8000);
+
+    fetch('/api/login', { method: 'POST', body: donnees, signal: controleur.signal })
+      .then(function (res) {
+        clearTimeout(delaiMax);
+        console.log('[Kalima login] réponse reçue, statut :', res.status);
+        debugLigne.textContent = 'Réponse reçue : HTTP ' + res.status;
+        if (res.ok) {
+          debugLigne.textContent = 'Connecté, redirection...';
+          window.location.href = '/';
+        } else {
+          erreurMsg.textContent = 'Identifiants incorrects (HTTP ' + res.status + ').';
+          erreurMsg.classList.add('visible');
+          btn.disabled = false;
+          btn.textContent = 'Se connecter';
+          enVol = false;
+        }
+      })
+      .catch(function (err) {
+        clearTimeout(delaiMax);
+        console.error('[Kalima login] erreur réseau :', err);
+        var estAbandon = err && err.name === 'AbortError';
+        erreurMsg.textContent = estAbandon
+          ? 'Le serveur ne répond pas (délai dépassé). Vérifie que uvicorn tourne toujours.'
+          : 'Erreur de connexion au serveur : ' + err.message;
+        erreurMsg.classList.add('visible');
+        debugLigne.textContent = 'Échec : ' + (estAbandon ? 'timeout' : err.message);
+        btn.disabled = false;
+        btn.textContent = 'Se connecter';
+        enVol = false;
+      });
+  }
+
+  form.addEventListener('submit', tenterConnexion);
+})();
+
+/* ============================================================
+   PARTIE 2 -- Gros cube 3x3x3 (vrai Rubik's, mélange par couches
+   entières) qui se balade en fond, avec un champ de particules pour
+   donner une vraie profondeur 3D à la scène.
+   Isolée : une erreur ici ne peut jamais empêcher la connexion
+   (partie 1) de fonctionner.
+   ============================================================ */
+(function () {
+  try {
+    var canvas = document.getElementById('cubeCanvas');
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0, 9);
+
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    function redimensionner() {
+      renderer.setSize(window.innerWidth, window.innerHeight, false);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    }
+    redimensionner();
+    window.addEventListener('resize', redimensionner);
+
+    scene.add(new THREE.AmbientLight(0x2a1f14, 1.1));
+    var lumiereCle = new THREE.DirectionalLight(0xf5a93f, 2.2);
+    lumiereCle.position.set(5, 6, 4);
+    scene.add(lumiereCle);
+    var lumiereAppoint = new THREE.DirectionalLight(0x46c2a6, 0.7);
+    lumiereAppoint.position.set(-5, 1, -3);
+    scene.add(lumiereAppoint);
+    var lumiereRasante = new THREE.PointLight(0xff6b4d, 1.3, 14);
+    lumiereRasante.position.set(-2, -1, 3);
+    scene.add(lumiereRasante);
+
+    // --- Constellation de particules en profondeur ---
+    function ajouterConstellation(rayon, nombre) {
+      var positions = new Float32Array(nombre * 3);
+      var couleurs = new Float32Array(nombre * 3);
+      var palette = [[0.96, 0.66, 0.25], [1, 0.42, 0.30], [0.27, 0.76, 0.65]];
+      for (var i = 0; i < nombre; i++) {
+        var r = rayon * (0.4 + Math.random() * 0.75);
+        var theta = Math.random() * Math.PI * 2;
+        var phi = Math.acos(2 * Math.random() - 1);
+        positions[i*3] = r * Math.sin(phi) * Math.cos(theta);
+        positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+        positions[i*3+2] = r * Math.cos(phi) - 4;
+        var c = palette[Math.floor(Math.random() * palette.length)];
+        couleurs[i*3] = c[0]; couleurs[i*3+1] = c[1]; couleurs[i*3+2] = c[2];
+      }
+      var geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(couleurs, 3));
+      var mat = new THREE.PointsMaterial({ size: 0.06, vertexColors: true, transparent: true, opacity: 0.5, sizeAttenuation: true });
+      var points = new THREE.Points(geo, mat);
+      scene.add(points);
+      return points;
+    }
+    var constellation = ajouterConstellation(11, 320);
+
+    // --- Le cube 3x3x3, plus petit, fixe à gauche de l'écran ---
+    var PALETTE = [0xf5a93f, 0xe8963a, 0xd97f3a, 0xc9622a, 0xffc773, 0xff6b4d, 0x241c14, 0x2e2318];
+    var ESPACE = 1.0;
+    var groupeCube = new THREE.Group();
+    var cubies = [];
+
+    for (var x = -1; x <= 1; x++) {
+      for (var y = -1; y <= 1; y++) {
+        for (var z = -1; z <= 1; z++) {
+          var couleur = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+          var materiau = new THREE.MeshStandardMaterial({
+            color: couleur,
+            metalness: 0.5 + Math.random() * 0.2,
+            roughness: 0.25 + Math.random() * 0.3,
+          });
+          var mesh = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.92, 0.92), materiau);
+          mesh.position.set(x * ESPACE, y * ESPACE, z * ESPACE);
+          mesh.userData.coord = { x: x, y: y, z: z };
+          groupeCube.add(mesh);
+          cubies.push(mesh);
+        }
+      }
+    }
+    groupeCube.position.set(-3.4, 0, 0);
+    scene.add(groupeCube);
+
+    // --- Mécanisme de mélange par couches (vrai Rubik's) ---
+    function coordApresRotation(c, axe, sens) {
+      if (axe === 'x') return sens > 0 ? { x: c.x, y: -c.z, z: c.y } : { x: c.x, y: c.z, z: -c.y };
+      if (axe === 'y') return sens > 0 ? { x: c.z, y: c.y, z: -c.x } : { x: -c.z, y: c.y, z: c.x };
+      return sens > 0 ? { x: -c.y, y: c.x, z: c.z } : { x: c.y, y: -c.x, z: c.z };
+    }
+
+    var melangeEnCours = false;
+    function prochainMelange() {
+      if (melangeEnCours) return;
+      melangeEnCours = true;
+
+      var axes = ['x', 'y', 'z'];
+      var axe = axes[Math.floor(Math.random() * 3)];
+      var couche = Math.floor(Math.random() * 3) - 1;
+      var sens = Math.random() < 0.5 ? 1 : -1;
+      var selection = cubies.filter(function (m) { return m.userData.coord[axe] === couche; });
+
+      var pivot = new THREE.Group();
+      groupeCube.add(pivot);
+      selection.forEach(function (m) { pivot.attach(m); });
+
+      var duree = 750, debut = null;
+      var angleCible = sens * Math.PI / 2;
+
+      function etape(temps) {
+        if (!debut) debut = temps;
+        var progres = Math.min((temps - debut) / duree, 1);
+        var ease = progres < 0.5 ? 2 * progres * progres : 1 - Math.pow(-2 * progres + 2, 2) / 2;
+        pivot.rotation[axe] = angleCible * ease;
+        if (progres < 1) {
+          requestAnimationFrame(etape);
+        } else {
+          selection.forEach(function (m) {
+            groupeCube.attach(m);
+            m.userData.coord = coordApresRotation(m.userData.coord, axe, sens);
+            m.position.set(m.userData.coord.x * ESPACE, m.userData.coord.y * ESPACE, m.userData.coord.z * ESPACE);
+          });
+          groupeCube.remove(pivot);
+          melangeEnCours = false;
+        }
+      }
+      requestAnimationFrame(etape);
+    }
+    setInterval(prochainMelange, 2400);
+    setTimeout(prochainMelange, 1200);
+
+    // --- Rotation continue rapide sur plusieurs axes à la fois
+    // (comme le cube du hero), position fixe à gauche ---
+    var angleY = 0.5, angleX = -0.25;
+    function animer() {
+      angleY += 0.010;
+      angleX += 0.0065;
+      groupeCube.rotation.y = angleY;
+      groupeCube.rotation.x = angleX;
+      constellation.rotation.y += 0.0006;
+      renderer.render(scene, camera);
+      requestAnimationFrame(animer);
+    }
+    animer();
+  } catch (erreurCube) {
+    console.error('[Kalima login] erreur rendu 3D (non bloquant) :', erreurCube);
+  }
+})();
+</script>
+
+</body>
+</html>

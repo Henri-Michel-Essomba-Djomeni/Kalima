@@ -1,4 +1,4 @@
-# VideoDubber — Analyse commerciale, concurrentielle, légale et technique
+# Kalima — Analyse commerciale, concurrentielle, légale et technique
 
 > Recherche effectuée en juillet 2026. Sources : rapports de marché, données ARR publiques, licensing docs.
 
@@ -51,7 +51,7 @@ Des agences de localisation IA facturent de **$20K à $80K MRR** pour un service
 
 ---
 
-## 3. Opportunités de revenus pour VideoDubber
+## 3. Opportunités de revenus pour Kalima
 
 ### 3.1 SaaS — Abonnements (le plus scalable)
 
@@ -63,7 +63,7 @@ Des agences de localisation IA facturent de **$20K à $80K MRR** pour un service
 | **Scale** | $199–$299/mo (2000 min) | Studio, média |
 | **Enterprise** | Sur devis | API, SSO, SLA |
 
-*Référence : un produit nommé "VideoDubber" sur TrustMRR déclare $2,440/mo (starter $9 → scale $199).*
+*Référence : un produit nommé "Kalima" sur TrustMRR déclare $2,440/mo (starter $9 → scale $199).*
 
 ### 3.2 Paiement à l'usage
 
@@ -112,21 +112,19 @@ Des agences de localisation IA facturent de **$20K à $80K MRR** pour un service
 | **OpenVoice v2** | **MIT** | ✅ Oui |
 | **MeloTTS** | MIT (checkpoints) | ✅ Oui |
 
-### 4.2 Le problème NLLB-200
+### 4.2 ~~Le problème NLLB-200~~ RÉSOLU
 
-**C'est le point bloquant principal.** NLLB-200 est sous licence **CC BY-NC 4.0** = interdiction d'usage commercial. Meta permet de demander une licence commerciale dédiée, mais rien ne garantit son obtention.
+~~NLLB-200 est CC BY-NC 4.0 = interdiction d'usage commercial.~~
 
-**Alternatives commerciales :**
-- **M2M-100** (Meta, **MIT**) — moins performant que NLLB mais 100 langues et usage commercial libre
-- **OpenAI API / Google Cloud Translation** — payant à l'usage, commercial, pas de souci de licence
-- **Modèles plus petits mais permissifs** — opus-mt (Helsinki NLP), plupart sous MIT
-- **Fine-tuner un modèle ouvert** (M2M-100) sur ses propres données
+**Le module `translator.py` utilise désormais M2M-100 (licence MIT)**
+dans la branche `clean/legal-free`. Usage commercial libre.
 
-### 4.3 Le problème edge-tts
+### 4.3 ~~Le problème edge-tts~~ RÉSOLU
 
-- Le package open-source `edge-tts` (GPL v3) détourne l'API Bing Speech de Microsoft
-- **Utilisable pour usage personnel mais risqué en commercial** : Microsoft peut couper l'accès, changer l'API, ou poursuivre
-- **Solution** : migrer vers **Azure Cognitive Services TTS** (abonnement payant, ~$0.15–$1.00/heure), Google Cloud TTS, Amazon Polly, ou un modèle open-source type **Kokoro-82M / Piper** (MIT/GPL)
+~~`edge-tts` (GPL v3) détourne l'API Bing Speech — risqué en commercial.~~
+
+**Le module `tts_generator.py` utilise désormais Piper TTS (licence MIT, 100 % local)**
+dans la branche `clean/legal-free`. Aucun appel réseau, aucune dépendance cloud.
 
 ### 4.4 Clonage vocal — consentement obligatoire
 
@@ -159,7 +157,7 @@ Des agences de localisation IA facturent de **$20K à $80K MRR** pour un service
 ### 5.2 Pas de lip-sync
 
 - Les concurrents (DubSync, Rask AI, Deepdub) proposent tous du lip-sync
-- VideoDubber se contente de remplacer la piste audio → décalage labial perceptible
+- Kalima se contente de remplacer la piste audio → décalage labial perceptible
 - **Le lip-sync est le critère d'achat #1** pour les clients professionnels
 
 ### 5.3 Pas de multi-speaker (diarization)
@@ -203,7 +201,7 @@ Des agences de localisation IA facturent de **$20K à $80K MRR** pour un service
 
 ## 7. Conclusion
 
-Le marché est massif ($1.16Md, croissance 44%/an) et en pleine expansion. VideoDubber a une base technique solide mais **ne peut pas être vendu tel quel** à cause de la licence CC BY-NC de NLLB-200 et du risque edge-tts (API Microsoft détournée). Une fois ces deux points réglés, le produit peut être commercialisé via :
+Le marché est massif ($1.16Md, croissance 44%/an) et en pleine expansion. Kalima a une base technique solide mais **ne peut pas être vendu tel quel** à cause de la licence CC BY-NC de NLLB-200 et du risque edge-tts (API Microsoft détournée). Une fois ces deux points réglés, le produit peut être commercialisé via :
 
 1. **Abonnements SaaS** (le plus scalable, marge 70-90%)
 2. **Revenue share YouTube** (zéro friction client)
