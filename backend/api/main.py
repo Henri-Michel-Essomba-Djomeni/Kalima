@@ -5,6 +5,7 @@ import secrets
 import hashlib
 import asyncio
 
+from core.assistant import discuter, ErreurAssistant
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, PlainTextResponse, JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -98,6 +99,18 @@ async def connexion(utilisateur: str = Form(...), mot_de_passe: str = Form(...))
     # du serveur pendant ce temps (sleep asynchrone, pas synchrone).
     await asyncio.sleep(0.6)
     raise HTTPException(401, "Identifiants incorrects.")
+
+@app.post("/api/assistant")
+async def assistant_chat(requete: Request):
+    corps = await requete.json()
+    messages = corps.get("messages", [])
+    if not messages:
+        raise HTTPException(400, "Aucun message fourni.")
+    try:
+        resultat = discuter(messages)
+    except ErreurAssistant as e:
+        raise HTTPException(503, str(e))
+    return resultat
 
 
 @app.get("/api/logout")
