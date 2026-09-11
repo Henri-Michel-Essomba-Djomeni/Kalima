@@ -1320,5 +1320,19 @@ historiqueToggle.addEventListener('click', () => {
 });
 </script>
 
+<script>
+  window.applyKalimaAction = function (action) {
+    if (action.mode) {
+      const carte = document.querySelector(`.mode-carte[data-mode="${action.mode}"]`);
+      if (carte) carte.click(); // déclenche exactement le même comportement qu'un clic utilisateur
+    }
+    if (action.langue_cible) document.querySelector('#langueCible').value = action.langue_cible;
+    if (action.langue_source) document.querySelector('#langueSource').value = action.langue_source;
+    if (typeof action.cloner_voix === 'boolean') document.querySelector('#cloneVoix').checked = action.cloner_voix;
+  };
+</script>
+<link rel="stylesheet" href="/assistant_widget.css">
+<script src="/assistant_widget.js" defer></script>
+
 </body>
 </html>
