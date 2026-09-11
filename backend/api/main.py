@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, JSONResponse, HTM
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
-from assistant.router import router as assistant_router
+from core.assistant import discuter, ErreurAssistant
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -99,6 +99,19 @@ async def connexion(utilisateur: str = Form(...), mot_de_passe: str = Form(...))
     # du serveur pendant ce temps (sleep asynchrone, pas synchrone).
     await asyncio.sleep(0.6)
     raise HTTPException(401, "Identifiants incorrects.")
+
+
+@app.post("/api/assistant")
+async def assistant_chat(requete: Request):
+    corps = await requete.json()
+    messages = corps.get("messages", [])
+    if not messages:
+        raise HTTPException(400, "Aucun message fourni.")
+    try:
+        resultat = discuter(messages)
+    except ErreurAssistant as e:
+        raise HTTPException(503, str(e))
+    return resultat
 
 
 @app.get("/api/logout")
