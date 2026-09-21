@@ -818,7 +818,7 @@
   </footer>
 
 </div>
-
+<script src="/upload_reprise.js"></script>
 <script>
 // Cube rendu en WebGL (Three.js), sur un canvas plein écran fixe --
 // la constellation de particules couvre toute la page, pas juste un
@@ -1196,18 +1196,22 @@ btnLancer.addEventListener('click', async () => {
   timeline.classList.add('visible');
   reinitialiserTimeline();
 
-  const formData = new FormData();
-  if (sourceActuelle === 'fichier') {
-    formData.append('fichier', fichierChoisi);
-  } else {
-    formData.append('youtube_url', urlYoutube.value.trim());
-  }
-  formData.append('langue_source', selSource.value);
-  formData.append('langue_cible', selCible.value);
-  formData.append('cloner_voix', modeActuel === 'doublage' && cloneVoix.checked);
-  formData.append('mode', modeActuel);
+ const formData = new FormData();
 
   try {
+    if (sourceActuelle === 'fichier') {
+      const { empreinte } = await envoyerAvecReprise(fichierChoisi, (fraction) => {
+        btnLancer.textContent = `Envoi de la vidéo... ${Math.round(fraction * 100)}%`;
+      });
+      formData.append('empreinte', empreinte);
+    } else {
+      formData.append('youtube_url', urlYoutube.value.trim());
+    }
+    formData.append('langue_source', selSource.value);
+    formData.append('langue_cible', selCible.value);
+    formData.append('cloner_voix', modeActuel === 'doublage' && cloneVoix.checked);
+    formData.append('mode', modeActuel);
+
     const res = await fetchAuth('/api/traduire', { method: 'POST', body: formData });
     if (!res.ok) throw new Error("Échec de l'envoi.");
     const { job_id } = await res.json();

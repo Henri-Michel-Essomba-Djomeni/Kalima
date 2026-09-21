@@ -21,6 +21,13 @@ from core.srt_exporter import segments_vers_srt, segments_vers_vtt, segments_ver
 from core.youtube_downloader import telecharger_video, ErreurTelechargement
 from api.job_manager import creer_job, obtenir_job, mettre_a_jour_job, lister_jobs, StatutJob
 
+from core.upload_reprise import (
+    initialiser_upload,
+    ecrire_morceau,
+    upload_est_complet,
+    finaliser_upload,
+)
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOSSIER_UPLOADS = os.path.join(BASE_DIR, "uploads")
 DOSSIER_OUTPUTS = os.path.join(BASE_DIR, "outputs")
@@ -216,9 +223,29 @@ def lister_langues_clonables():
     return {"langues": sorted(LANGUES_CLONABLES.keys())}
 
 
+@app.post("/api/upload/initialiser")
+async def upload_initialiser(requete: Request):
+    corps = await requete.json()
+    empreinte = corps["empreinte"]
+    nom_fichier = corps["nom_fichier"]
+    taille_totale = corps["taille_totale"]
+    octets_recus = initialiser_upload(empreinte, nom_fichier, taille_totale)
+    return {"octets_recus": octets_recus}
+
+
+@app.post("/api/upload/morceau/{empreinte}")
+async def upload_morceau(empreinte: str, requete: Request, offset: int = Query(...)):
+    morceau = await requete.body()
+    try:
+        octets_recus = ecrire_morceau(empreinte, offset, morceau)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"octets_recus": octets_recus}
+
 @app.post("/api/traduire")
 async def lancer_traduction(
     fichier: UploadFile = File(None),
+    empreinte: str = Form(None),
     youtube_url: str = Form(None),
     langue_source: str = Form(...),
     langue_cible: str = Form(...),
@@ -237,7 +264,12 @@ async def lancer_traduction(
     job = creer_job(langue_source=langue_source, langue_cible=langue_cible, mode=mode)
     chemin_video = None
 
-    if fichier:
+    if empreinte:
+        if not upload_est_complet(empreinte):
+            raise HTTPException(400, "Upload incomplet, réessaie.")
+        chemin_video = finaliser_upload(empreinte, DOSSIER_UPLOADS, job.id)
+    elif fichier:
+        # Ancien chemin, gardé pour compatibilité (petits fichiers envoyés d'un coup)
         chemin_video = os.path.join(DOSSIER_UPLOADS, f"{job.id}_{fichier.filename}")
         with open(chemin_video, "wb") as f:
             while True:
