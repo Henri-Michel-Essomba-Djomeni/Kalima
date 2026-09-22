@@ -215,3 +215,12 @@ def verifier_et_incrementer_quota(utilisateur_id: str, limite: int = LIMITE_JOBS
                 "INSERT INTO usage_quotidien (utilisateur_id, date, nombre_jobs) VALUES (?, ?, 1)",
                 (utilisateur_id, aujourdhui),
             )
+
+
+def obtenir_email(utilisateur_id: str) -> str | None:
+    with sqlite3.connect(CHEMIN_DB) as conn:
+        conn.row_factory = sqlite3.Row
+        ligne = conn.execute(
+            "SELECT email FROM utilisateurs WHERE id = ?", (utilisateur_id,)
+        ).fetchone()
+    return ligne["email"] if ligne else None

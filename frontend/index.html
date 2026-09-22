@@ -825,6 +825,9 @@
 // coin, et reste derrière le contenu même en scrollant. Vrai
 // mécanisme de Rubik's cube : des couches entières (9 petits cubes)
 // pivotent ensemble de 90°, jamais un cube isolé sur son propre axe.
+const PRIX_PRO = 5000;
+const PRIX_CREDIT = 1000;
+
 try {
   const canvas = document.getElementById('cubeCanvas');
   const heroVisuel = document.getElementById('heroVisuel');
@@ -1213,11 +1216,32 @@ btnLancer.addEventListener('click', async () => {
     formData.append('mode', modeActuel);
 
     const res = await fetchAuth('/api/traduire', { method: 'POST', body: formData });
-    if (!res.ok) throw new Error("Échec de l'envoi.");
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const erreur = new Error(data.detail || "Échec de l'envoi.");
+      erreur.status = res.status;
+      throw erreur;
+    }
     const { job_id } = await res.json();
     btnLancer.textContent = 'Traitement en cours...';
     suivreProgression(job_id);
   } catch (e) {
+    if (e.status === 402) {
+      const veutPro = confirm(
+        `${e.message}\n\nOK = Kalima Pro (${PRIX_PRO} XAF/mois, illimité)\nAnnuler = Payer ${PRIX_CREDIT} XAF pour débloquer ce fichier seulement`
+      );
+      const type = veutPro ? 'pro' : 'credit';
+
+      const resPaiement = await fetchAuth('/api/paiement/initier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type }),
+      });
+      const { pay_url } = await resPaiement.json();
+      window.location.href = pay_url;
+      return;
+    }
+
     messageEl.textContent = 'Erreur : ' + e.message;
     messageEl.classList.add('erreur');
     btnLancer.disabled = false;

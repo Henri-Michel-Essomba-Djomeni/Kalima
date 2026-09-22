@@ -5,7 +5,7 @@ import secrets
 import hashlib
 import asyncio
 
-from dotenv import load_dotenv 
+from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, PlainTextResponse, JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,6 +41,20 @@ from core.comptes import (
 )
 from core.email_sender import envoyer_email_verification
 
+from core.paiements import (
+    ErreurPaiement,
+    est_pro,
+    consommer_credit,
+    initier_paiement,
+    verifier_signature_webhook,
+    traiter_webhook,
+    SEUIL_TAILLE_GRATUITE_OCTETS,
+    SEUIL_TAILLE_GRATUITE_MO,
+    PRIX_PRO_XAF,
+    PRIX_CREDIT_XAF,
+)
+from core.comptes import obtenir_email
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOSSIER_UPLOADS = os.path.join(BASE_DIR, "uploads")
 DOSSIER_OUTPUTS = os.path.join(BASE_DIR, "outputs")
@@ -57,7 +71,7 @@ os.makedirs(DOSSIER_OUTPUTS, exist_ok=True)
 NOM_COOKIE = "kalima_session"
 DUREE_SESSION_SECONDES = 30 * 24 * 3600
 
-CHEMINS_PUBLICS = {"/login", "/api/login", "/api/inscription", "/verifier-email", "/favicon.ico"}
+CHEMINS_PUBLICS = {"/login", "/api/login", "/api/inscription", "/verifier-email", "/api/paiement/webhook", "/favicon.ico"}
 
 app = FastAPI(title="Kalima API")
 
@@ -148,6 +162,39 @@ async def assistant_chat(requete: Request):
         raise HTTPException(503, str(e))
     return resultat
 
+
+@app.post("/api/paiement/initier")
+async def paiement_initier(requete: Request):
+    corps = await requete.json()
+    type_achat = corps.get("type")
+    email = obtenir_email(requete.state.utilisateur_id)
+
+    try:
+        pay_url = initier_paiement(requete.state.utilisateur_id, email, type_achat)
+    except ErreurPaiement as e:
+        raise HTTPException(400, str(e))
+
+    return {"pay_url": pay_url}
+
+
+@app.post("/api/paiement/webhook")
+async def paiement_webhook(requete: Request):
+    forme = await requete.form()
+    uuid = forme.get("uuid", "")
+    invoice_id = forme.get("invoice_id", "")
+    statut = forme.get("status", "")
+    montant = forme.get("amount", "")
+    signature = forme.get("signature", "")
+
+    if not verifier_signature_webhook(uuid, invoice_id, statut, montant, signature):
+        raise HTTPException(401, "Signature invalide")
+
+    try:
+        traiter_webhook(uuid, statut)
+    except ErreurPaiement:
+        pass  # transaction inconnue -- on ignore plutôt que de faire échouer le webhook
+
+    return {"ok": True}
 
 @app.get("/api/logout")
 def deconnexion(requete: Request):
