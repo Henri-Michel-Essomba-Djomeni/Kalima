@@ -339,12 +339,7 @@ async def lancer_traduction(
     if not fichier and not youtube_url:
         raise HTTPException(400, "Il faut fournir soit un fichier, soit un lien YouTube.")
 
-    try:
-        verifier_et_incrementer_quota(requete.state.utilisateur_id)
-    except ErreurCompte as e:
-        raise HTTPException(429, str(e))
-
-    job = creer_job(langue_source=langue_source, langue_cible=langue_cible, mode=mode)
+        job = creer_job(langue_source=langue_source, langue_cible=langue_cible, mode=mode)
     chemin_video = None
 
     if empreinte:
@@ -360,6 +355,28 @@ async def lancer_traduction(
                 if not morceau:
                     break
                 f.write(morceau)
+
+    # Contrôle quota + taille -- fait ici, une fois le fichier réellement
+    # présent sur le disque, pour connaître sa vraie taille.
+    if not est_pro(requete.state.utilisateur_id):
+        taille_fichier = os.path.getsize(chemin_video)
+
+        if taille_fichier > SEUIL_TAILLE_GRATUITE_OCTETS:
+            if not consommer_credit(requete.state.utilisateur_id):
+                raise HTTPException(
+                    402,
+                    f"Ce fichier dépasse {SEUIL_TAILLE_GRATUITE_MO} Mo (offre gratuite). "
+                    f"Passe à Kalima Pro ou achète un crédit pour continuer.",
+                )
+        else:
+            try:
+                verifier_et_incrementer_quota(requete.state.utilisateur_id)
+            except ErreurCompte:
+                if not consommer_credit(requete.state.utilisateur_id):
+                    raise HTTPException(
+                        402,
+                        "Limite quotidienne atteinte. Passe à Kalima Pro ou achète un crédit pour continuer.",
+                    )
 
     thread = threading.Thread(
         target=_executer_job_en_arriere_plan,
