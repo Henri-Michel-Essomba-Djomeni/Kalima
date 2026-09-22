@@ -5,6 +5,7 @@ import secrets
 import hashlib
 import asyncio
 
+from dotenv import load_dotenv 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, PlainTextResponse, JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,6 +29,18 @@ from core.upload_reprise import (
     finaliser_upload,
 )
 
+from core.comptes import (
+    ErreurCompte,
+    creer_utilisateur,
+    verifier_email,
+    authentifier,
+    creer_session,
+    utilisateur_depuis_session,
+    supprimer_session,
+    verifier_et_incrementer_quota,
+)
+from core.email_sender import envoyer_email_verification
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOSSIER_UPLOADS = os.path.join(BASE_DIR, "uploads")
 DOSSIER_OUTPUTS = os.path.join(BASE_DIR, "outputs")
@@ -41,41 +54,36 @@ os.makedirs(DOSSIER_OUTPUTS, exist_ok=True)
 # l'autre (elles sont propres à la session PowerShell qui les a définies).
 # Si tu les redéfinis puis ouvres un nouveau terminal pour lancer uvicorn,
 # les valeurs par défaut ci-dessous seront utilisées à la place.
-UTILISATEUR = os.environ.get("KALIMA_USER", "admin")
-MOT_DE_PASSE = os.environ.get("KALIMA_PASS", "changemoi")
-
-# Jeton de session : dérivé des identifiants, régénéré si tu changes le
-# mot de passe (donc toute session ouverte avec l'ancien mot de passe est
-# automatiquement invalidée). Suffisant pour une protection d'accès
-# personnelle/petite échelle -- pas une architecture d'auth "entreprise".
-_JETON_SESSION = hashlib.sha256(f"{UTILISATEUR}:{MOT_DE_PASSE}".encode()).hexdigest()
 NOM_COOKIE = "kalima_session"
-DUREE_SESSION_SECONDES = 30 * 24 * 3600  # 30 jours
+DUREE_SESSION_SECONDES = 30 * 24 * 3600
 
-CHEMINS_PUBLICS = {"/login", "/api/login", "/favicon.ico"}
+CHEMINS_PUBLICS = {"/login", "/api/login", "/api/inscription", "/verifier-email", "/favicon.ico"}
 
 app = FastAPI(title="Kalima API")
 
 
 class AuthentificationSession(BaseHTTPMiddleware):
     """
-    Protège toutes les routes sauf /login (page + endpoint) via un cookie
-    de session. Les requêtes API sans session valide reçoivent un 401 JSON
-    (le frontend redirige alors vers /login) ; les requêtes de page reçoivent
-    directement une redirection HTTP vers /login.
+    Protège toutes les routes sauf celles listées dans CHEMINS_PUBLICS.
+    Le cookie contient maintenant un jeton de session propre à chaque
+    utilisateur (et plus un jeton unique partagé) -- on le résout en
+    utilisateur_id via la base de comptes, et on l'attache à la requête
+    pour que les routes suivantes sachent qui fait la demande.
     """
     async def dispatch(self, request: Request, call_next):
         if request.url.path in CHEMINS_PUBLICS:
             return await call_next(request)
 
         cookie = request.cookies.get(NOM_COOKIE)
-        if cookie and secrets.compare_digest(cookie, _JETON_SESSION):
+        utilisateur_id = utilisateur_depuis_session(cookie) if cookie else None
+
+        if utilisateur_id:
+            request.state.utilisateur_id = utilisateur_id
             return await call_next(request)
 
         if request.url.path.startswith("/api/"):
             return JSONResponse({"detail": "Session expirée ou absente."}, status_code=401)
         return RedirectResponse(url="/login", status_code=307)
-
 
 app.add_middleware(AuthentificationSession)
 
@@ -93,19 +101,39 @@ def page_connexion():
     return HTMLResponse(open(chemin, encoding="utf-8").read())
 
 
+@app.post("/api/inscription")
+async def inscription(email: str = Form(...), mot_de_passe: str = Form(...)):
+    try:
+        utilisateur_id, jeton = creer_utilisateur(email, mot_de_passe)
+    except ErreurCompte as e:
+        raise HTTPException(400, str(e))
+
+    envoyer_email_verification(email, jeton)
+    return {"ok": True, "message": "Compte créé. Vérifie ta boîte mail pour l'activer."}
+
+
+@app.get("/verifier-email")
+def route_verification(jeton: str = Query(...)):
+    if verifier_email(jeton):
+        return RedirectResponse(url="/login?verifie=1")
+    return RedirectResponse(url="/login?verifie=0")
+
+
 @app.post("/api/login")
-async def connexion(utilisateur: str = Form(...), mot_de_passe: str = Form(...)):
-    if secrets.compare_digest(utilisateur, UTILISATEUR) and secrets.compare_digest(mot_de_passe, MOT_DE_PASSE):
-        reponse = JSONResponse({"ok": True})
-        reponse.set_cookie(
-            NOM_COOKIE, _JETON_SESSION,
-            max_age=DUREE_SESSION_SECONDES, httponly=True, samesite="lax",
-        )
-        return reponse
-    # Petit délai pour ralentir le bruteforce naïf, sans bloquer le reste
-    # du serveur pendant ce temps (sleep asynchrone, pas synchrone).
-    await asyncio.sleep(0.6)
-    raise HTTPException(401, "Identifiants incorrects.")
+async def connexion(email: str = Form(...), mot_de_passe: str = Form(...)):
+    try:
+        utilisateur_id = authentifier(email, mot_de_passe)
+    except ErreurCompte as e:
+        await asyncio.sleep(0.6)  # ralentit le bruteforce naïf
+        raise HTTPException(401, str(e))
+
+    jeton_session = creer_session(utilisateur_id)
+    reponse = JSONResponse({"ok": True})
+    reponse.set_cookie(
+        NOM_COOKIE, jeton_session,
+        max_age=DUREE_SESSION_SECONDES, httponly=True, samesite="lax",
+    )
+    return reponse
 
 
 @app.post("/api/assistant")
@@ -122,7 +150,10 @@ async def assistant_chat(requete: Request):
 
 
 @app.get("/api/logout")
-def deconnexion():
+def deconnexion(requete: Request):
+    cookie = requete.cookies.get(NOM_COOKIE)
+    if cookie:
+        supprimer_session(cookie)
     reponse = RedirectResponse(url="/login")
     reponse.delete_cookie(NOM_COOKIE, path="/", samesite="lax")
     return reponse
@@ -260,6 +291,11 @@ async def lancer_traduction(
 
     if not fichier and not youtube_url:
         raise HTTPException(400, "Il faut fournir soit un fichier, soit un lien YouTube.")
+
+    try:
+        verifier_et_incrementer_quota(requete.state.utilisateur_id)
+    except ErreurCompte as e:
+        raise HTTPException(429, str(e))
 
     job = creer_job(langue_source=langue_source, langue_cible=langue_cible, mode=mode)
     chemin_video = None

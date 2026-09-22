@@ -244,8 +244,8 @@
     <div class="erreur" id="erreurMsg">Identifiants incorrects.</div>
 
     <form id="formLogin" novalidate>
-      <label for="utilisateur">Utilisateur</label>
-      <input type="text" id="utilisateur" name="utilisateur" autocomplete="username" required autofocus>
+            <label for="utilisateur">Email</label>
+      <input type="email" id="utilisateur" name="utilisateur" autocomplete="email" required autofocus>
 
       <label for="motDePasse">Mot de passe</label>
       <div class="champ-mdp">
@@ -259,6 +259,10 @@
       </div>
 
       <button type="submit" class="principal" id="btnConnexion">Se connecter</button>
+      <p style="text-align:center; font-size:12.5px; color:var(--text-muted); margin-top:12px;">
+        Pas encore de compte ?
+        <a href="#" id="lienBasculer" style="color:var(--amber);">Créer un compte</a>
+      </p>
     </form>
     <div class="debug-ligne" id="debugLigne">prêt.</div>
   </div>
@@ -294,82 +298,95 @@
    PARTIE 1 -- Formulaire de connexion.
    ============================================================ */
 (function () {
-  var form = document.getElementById('formLogin');
-  var erreurMsg = document.getElementById('erreurMsg');
-  var btn = document.getElementById('btnConnexion');
-  var champMdp = document.getElementById('motDePasse');
-  var boutonOeil = document.getElementById('boutonOeil');
-  var iconeOeil = document.getElementById('iconeOeil');
-  var debugLigne = document.getElementById('debugLigne');
+      var form = document.getElementById('formLogin');
+    var erreurMsg = document.getElementById('erreurMsg');
+    var btn = document.getElementById('btnConnexion');
+    var champMdp = document.getElementById('motDePasse');
+    var champEmail = document.getElementById('utilisateur');
+    var boutonOeil = document.getElementById('boutonOeil');
+    var iconeOeil = document.getElementById('iconeOeil');
+    var debugLigne = document.getElementById('debugLigne');
+    var lienBasculer = document.getElementById('lienBasculer');
+    var titre = document.querySelector('.carte-connexion h1');
+    var sousTitre = document.querySelector('.sous-titre');
 
-  console.log('[Kalima login] script chargé. form =', form, ' bouton =', btn);
-  debugLigne.textContent = 'script chargé, en attente.';
+    var modeInscription = false;
 
-  boutonOeil.addEventListener('click', function () {
-    var visible = champMdp.type === 'text';
-    champMdp.type = visible ? 'password' : 'text';
-    iconeOeil.innerHTML = visible
-      ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>'
-      : '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.7 18.7 0 0 1 5.06-5.94M9.9 4.24A10.9 10.9 0 0 1 12 4c7 0 11 8 11 8a18.6 18.6 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
-  });
+    // Message après clic sur le lien reçu par email
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('verifie') === '1') {
+      debugLigne.textContent = 'Compte activé, tu peux te connecter.';
+    } else if (params.get('verifie') === '0') {
+      erreurMsg.textContent = "Lien de vérification invalide ou déjà utilisé.";
+      erreurMsg.classList.add('visible');
+    }
 
-  var enVol = false;
+    lienBasculer.addEventListener('click', function (e) {
+      e.preventDefault();
+      modeInscription = !modeInscription;
+      titre.textContent = modeInscription ? 'Créer un compte' : 'Accès protégé';
+      sousTitre.textContent = modeInscription
+        ? 'Un email de vérification te sera envoyé'
+        : "Connecte-toi pour accéder à l'application";
+      btn.textContent = modeInscription ? 'Créer le compte' : 'Se connecter';
+      lienBasculer.textContent = modeInscription ? 'Déjà un compte ? Se connecter' : 'Créer un compte';
+      erreurMsg.classList.remove('visible');
+    });
 
-  function tenterConnexion(e) {
-    if (e && e.preventDefault) e.preventDefault();
-    console.log('[Kalima login] clic/soumission détecté.');
-    debugLigne.textContent = 'clic détecté...';
+    boutonOeil.addEventListener('click', function () {
+      var visible = champMdp.type === 'text';
+      champMdp.type = visible ? 'password' : 'text';
+      iconeOeil.innerHTML = visible
+        ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>'
+        : '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.7 18.7 0 0 1 5.06-5.94M9.9 4.24A10.9 10.9 0 0 1 12 4c7 0 11 8 11 8a18.6 18.6 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+    });
 
-    if (enVol) { console.log('[Kalima login] requête déjà en cours, ignoré.'); return; }
-    enVol = true;
+    var enVol = false;
 
-    erreurMsg.classList.remove('visible');
-    btn.disabled = true;
-    btn.textContent = 'Connexion...';
-    debugLigne.textContent = 'Envoi de la requête à /api/login...';
+    function tenterConnexion(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      if (enVol) return;
+      enVol = true;
 
-    var utilisateur = document.getElementById('utilisateur').value;
-    var motDePasse = champMdp.value;
+      erreurMsg.classList.remove('visible');
+      btn.disabled = true;
+      btn.textContent = modeInscription ? 'Création...' : 'Connexion...';
 
-    var donnees = new FormData();
-    donnees.append('utilisateur', utilisateur);
-    donnees.append('mot_de_passe', motDePasse);
+      var donnees = new FormData();
+      donnees.append('email', champEmail.value);
+      donnees.append('mot_de_passe', champMdp.value);
 
-    var controleur = new AbortController();
-    var delaiMax = setTimeout(function () { controleur.abort(); }, 8000);
+      var url = modeInscription ? '/api/inscription' : '/api/login';
 
-    fetch('/api/login', { method: 'POST', body: donnees, signal: controleur.signal })
-      .then(function (res) {
-        clearTimeout(delaiMax);
-        console.log('[Kalima login] réponse reçue, statut :', res.status);
-        debugLigne.textContent = 'Réponse reçue : HTTP ' + res.status;
-        if (res.ok) {
-          debugLigne.textContent = 'Connecté, redirection...';
-          window.location.href = '/';
-        } else {
-          erreurMsg.textContent = 'Identifiants incorrects (HTTP ' + res.status + ').';
+      fetch(url, { method: 'POST', body: donnees })
+        .then(function (res) {
+          return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+        })
+        .then(function (r) {
+          if (r.ok && modeInscription) {
+            debugLigne.textContent = r.data.message || 'Compte créé, vérifie ta boîte mail.';
+            btn.disabled = false;
+            btn.textContent = 'Créer le compte';
+          } else if (r.ok) {
+            window.location.href = '/';
+          } else {
+            erreurMsg.textContent = r.data.detail || 'Erreur.';
+            erreurMsg.classList.add('visible');
+            btn.disabled = false;
+            btn.textContent = modeInscription ? 'Créer le compte' : 'Se connecter';
+          }
+          enVol = false;
+        })
+        .catch(function (err) {
+          erreurMsg.textContent = 'Erreur de connexion au serveur : ' + err.message;
           erreurMsg.classList.add('visible');
           btn.disabled = false;
-          btn.textContent = 'Se connecter';
+          btn.textContent = modeInscription ? 'Créer le compte' : 'Se connecter';
           enVol = false;
-        }
-      })
-      .catch(function (err) {
-        clearTimeout(delaiMax);
-        console.error('[Kalima login] erreur réseau :', err);
-        var estAbandon = err && err.name === 'AbortError';
-        erreurMsg.textContent = estAbandon
-          ? 'Le serveur ne répond pas (délai dépassé). Vérifie que uvicorn tourne toujours.'
-          : 'Erreur de connexion au serveur : ' + err.message;
-        erreurMsg.classList.add('visible');
-        debugLigne.textContent = 'Échec : ' + (estAbandon ? 'timeout' : err.message);
-        btn.disabled = false;
-        btn.textContent = 'Se connecter';
-        enVol = false;
-      });
-  }
+        });
+    }
 
-  form.addEventListener('submit', tenterConnexion);
+form.addEventListener('submit', tenterConnexion);
 })();
 
 /* ============================================================

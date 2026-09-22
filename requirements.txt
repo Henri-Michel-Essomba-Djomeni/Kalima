@@ -33,3 +33,4 @@ python-multipart>=0.0.9
 # pour la procédure complète (sous-dépendances, dictionnaire unidic,
 # ressource NLTK, checkpoints OpenVoice).
 unidic-lite
+python-dotenv>=1.0.0
